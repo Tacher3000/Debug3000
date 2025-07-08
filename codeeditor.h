@@ -50,6 +50,7 @@ private:
     LineNumberArea* lineNumberArea;
     QSyntaxHighlighter* highlighter;
 
+
     class SyntaxHighlighter : public QSyntaxHighlighter {
     public:
         SyntaxHighlighter(QTextDocument* parent);
@@ -58,6 +59,9 @@ private:
     };
 
     void updateLineNumberAreaWidth();
+    int calculateStandardWidth() const;
+    int calculateAddressWidth() const;
+    int calculateInstructionLength(const QString &text);
 };
 
 class LineNumberArea : public QWidget {
