@@ -1,0 +1,20 @@
+#ifndef FILECONTROLLER_H
+#define FILECONTROLLER_H
+
+#include <QString>
+#include "fileprocessor.h"
+#include "scriptrunner.h"
+
+class FileController {
+public:
+    FileController();
+    ~FileController();
+    QString openFile(const QString& path);
+    bool saveFile(const QString& path, const QString& content);
+    QString runScript(const QString& filePath);
+private:
+    FileProcessor* processor;
+    ScriptRunner* runner;
+};
+
+#endif // FILECONTROLLER_H
