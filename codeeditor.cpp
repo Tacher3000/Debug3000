@@ -9,7 +9,7 @@ CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSynta
 void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
-    QRegularExpression instructionRegex("\\b(mov|int|add|sub|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret)\\b", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret)\\b", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator it = instructionRegex.globalMatch(text);
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
@@ -130,7 +130,7 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
         } else if (isReg1 && isMem2 || isMem2 && isReg1) {
             return 2;
         }
-    } else if (instruction == "ADD" || instruction == "SUB") {
+    } else if (instruction == "ADD" || instruction == "SUB" || instruction == "CMP") {
         if (isReg1 && isNum2) {
             return (arg2.toInt(nullptr, 16) <= 0xFF) ? 3 : 4;
         } else if (isReg1 && isReg2 || isReg1 && isMem2) {
@@ -140,8 +140,7 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
                instruction == "JZ" || instruction == "JNZ" || instruction == "JG" ||
                instruction == "JGE" || instruction == "JL" || instruction == "JLE") {
         if (isNumber(arg1)) {
-            int diff = arg1.toInt(nullptr, 16) - 0;
-            return (diff >= -126 && diff <= 129) ? 2 : 3;
+            return  2;
         }
         return 2;
     } else if (instruction == "MUL" || instruction == "DIV" || instruction == "IMUL" || instruction == "IDIV") {
