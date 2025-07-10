@@ -4,6 +4,8 @@
 #include <QPainter>
 #include <QFontMetrics>
 
+const QString CodeEditor::ADDRESS_FORMAT = "CS:0000";
+
 CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent) {}
 
 void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
@@ -14,15 +16,6 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
         setFormat(match.capturedStart(), match.capturedLength(), instructionFormat);
-    }
-
-    QTextCharFormat commandFormat;
-    commandFormat.setForeground(Qt::darkGreen);
-    QRegularExpression commandRegex("-\\w+");
-    it = commandRegex.globalMatch(text);
-    while (it.hasNext()) {
-        QRegularExpressionMatch match = it.next();
-        setFormat(match.capturedStart(), match.capturedLength(), commandFormat);
     }
 
     QTextCharFormat addressFormat;
@@ -139,9 +132,6 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
     } else if (instruction == "JMP" || instruction == "JE" || instruction == "JNE" ||
                instruction == "JZ" || instruction == "JNZ" || instruction == "JG" ||
                instruction == "JGE" || instruction == "JL" || instruction == "JLE") {
-        if (isNumber(arg1)) {
-            return  2;
-        }
         return 2;
     } else if (instruction == "MUL" || instruction == "DIV" || instruction == "IMUL" || instruction == "IDIV") {
         return 2;
@@ -192,9 +182,9 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent* event) {
             }
             else if (trimmed.isEmpty() && addressMode && showNextEmptyAddress) {
                 if (currentBlockNumber >= blockNumber && currentBlock.isVisible() && bottom >= event->rect().top()) {
-                    QString addressText = QString(":%1").arg(nextAddress, 4, 16, QChar('0')).toUpper();
+                    QString addressText = QString("CS:%1").arg(nextAddress, 4, 16, QChar('0')).toUpper();
                     painter.setPen(Qt::black);
-                    painter.drawText(standardWidth, top, addressWidth - 10, fontMetrics().height(),
+                    painter.drawText(standardWidth + MARGIN_LEFT, top, addressWidth - MARGIN_RIGHT, fontMetrics().height(),
                                      Qt::AlignRight | Qt::AlignVCenter, addressText);
                 }
                 addressMode = false;
@@ -202,9 +192,9 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent* event) {
             }
             else if (addressMode && !trimmed.isEmpty()) {
                 if (currentBlockNumber >= blockNumber && currentBlock.isVisible() && bottom >= event->rect().top()) {
-                    QString addressText = QString(":%1").arg(nextAddress, 4, 16, QChar('0')).toUpper();
+                    QString addressText = QString("CS:%1").arg(nextAddress, 4, 16, QChar('0')).toUpper();
                     painter.setPen(Qt::black);
-                    painter.drawText(standardWidth, top, addressWidth - 10, fontMetrics().height(),
+                    painter.drawText(standardWidth + MARGIN_LEFT, top, addressWidth - MARGIN_RIGHT, fontMetrics().height(),
                                      Qt::AlignRight | Qt::AlignVCenter, addressText);
                 }
                 nextAddress += calculateInstructionLength(trimmed);
@@ -214,7 +204,7 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent* event) {
         if (standardLineNumbering && currentBlockNumber >= blockNumber && currentBlock.isVisible() && bottom >= event->rect().top()) {
             painter.setPen(Qt::black);
             const QString number = QString::number(currentBlockNumber + 1);
-            painter.drawText(5, top, standardWidth - 10, fontMetrics().height(),
+            painter.drawText(MARGIN_LEFT, top, standardWidth - MARGIN_RIGHT, fontMetrics().height(),
                              Qt::AlignRight | Qt::AlignVCenter, number);
         }
 
@@ -275,12 +265,12 @@ int CodeEditor::calculateStandardWidth() const {
         max /= 10;
         ++digits;
     }
-    return fontMetrics().horizontalAdvance(QLatin1Char('9')) * (digits + 1) + 5;
+    return fontMetrics().horizontalAdvance(QLatin1Char('9')) * (digits + 1) + MARGIN_LEFT + MARGIN_RIGHT;
 }
 
 int CodeEditor::calculateAddressWidth() const {
     if (!addressLineNumbering) {
         return 0;
     }
-    return fontMetrics().horizontalAdvance(":0000") + 15;
+    return fontMetrics().horizontalAdvance(ADDRESS_FORMAT) + ADDRESS_EXTRA_WIDTH;
 }

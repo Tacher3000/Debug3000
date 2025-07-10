@@ -38,7 +38,11 @@ public:
     void lineNumberAreaPaintEvent(QPaintEvent* event);
     int lineNumberAreaWidth();
 private:
-    QString text;
+    static const int MARGIN_LEFT = 5;
+    static const int MARGIN_RIGHT = 10;
+    static const int ADDRESS_EXTRA_WIDTH = 15;
+    static const QString ADDRESS_FORMAT;
+
     QString theme;
     QFont font;
     bool standardLineNumbering;
@@ -49,7 +53,6 @@ private:
     int tabSize;
     LineNumberArea* lineNumberArea;
     QSyntaxHighlighter* highlighter;
-
 
     class SyntaxHighlighter : public QSyntaxHighlighter {
     public:
