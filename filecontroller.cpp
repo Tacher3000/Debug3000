@@ -2,9 +2,9 @@
 #include <QFile>
 #include <QTextStream>
 
-FileController::FileController() {
-    processor = new FileProcessor();
-    runner = new ScriptRunner();
+FileController::FileController(QObject* parent) : QObject(parent) {
+    processor = new FileProcessor(this);
+    runner = new ScriptRunner(this);
 }
 
 FileController::~FileController() {
@@ -21,6 +21,9 @@ QString FileController::openFile(const QString& path) {
             file.close();
             return content;
         }
+        return processor->readTxtFile(path);
+    } else if (path.endsWith(".com")) {
+        return processor->readComFile(path);
     }
     return QString();
 }

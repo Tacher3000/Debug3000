@@ -5,12 +5,12 @@
 #include <QFileDialog>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("DebugCrafter");
+    setWindowTitle(tr("DebugCrafter"));
     tabWidget = new QTabWidget(this);
     tabWidget->setTabsClosable(true);
     setCentralWidget(tabWidget);
-    settingsManager = new SettingsManager();
-    fileController = new FileController();
+    settingsManager = new SettingsManager(this);
+    fileController = new FileController(this);
     createMenus();
     createToolBar();
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
@@ -19,18 +19,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-    delete settingsManager;
-    delete fileController;
 }
 
 void MainWindow::createMenus() {
-    QMenu* fileMenu = menuBar()->addMenu("Файл");
-    QAction* newAction = fileMenu->addAction("Новый");
-    QAction* openAction = fileMenu->addAction("Открыть");
-    QAction* saveAction = fileMenu->addAction("Сохранить");
-    QAction* runAction = fileMenu->addAction("Запустить");
-    QMenu* settingsMenu = menuBar()->addMenu("Настройки");
-    QAction* preferencesAction = settingsMenu->addAction("Параметры");
+    QMenu* fileMenu = menuBar()->addMenu(tr("Файл"));
+    QAction* newAction = fileMenu->addAction(tr("Новый"));
+    QAction* openAction = fileMenu->addAction(tr("Открыть"));
+    QAction* saveAction = fileMenu->addAction(tr("Сохранить"));
+    QAction* runAction = fileMenu->addAction(tr("Запустить"));
+    QMenu* settingsMenu = menuBar()->addMenu(tr("Настройки"));
+    QAction* preferencesAction = settingsMenu->addAction(tr("Параметры"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
@@ -39,12 +37,12 @@ void MainWindow::createMenus() {
 }
 
 void MainWindow::createToolBar() {
-    QToolBar* toolBar = addToolBar("Tools");
-    QAction* newAction = toolBar->addAction(QIcon(":/icons/new.png"), "Новый");
-    QAction* openAction = toolBar->addAction(QIcon(":/icons/open.png"), "Открыть");
-    QAction* saveAction = toolBar->addAction(QIcon(":/icons/save.png"), "Сохранить");
-    QAction* runAction = toolBar->addAction(QIcon(":/icons/run.png"), "Запустить");
-    QAction* settingsAction = toolBar->addAction(QIcon(":/icons/settings.png"), "Настройки");
+    QToolBar* toolBar = addToolBar(tr("Tools"));
+    QAction* newAction = toolBar->addAction(QIcon(":/icons/new.png"), tr("Новый"));
+    QAction* openAction = toolBar->addAction(QIcon(":/icons/open.png"), tr("Открыть"));
+    QAction* saveAction = toolBar->addAction(QIcon(":/icons/save.png"), tr("Сохранить"));
+    QAction* runAction = toolBar->addAction(QIcon(":/icons/run.png"), tr("Запустить"));
+    QAction* settingsAction = toolBar->addAction(QIcon(":/icons/settings.png"), tr("Настройки"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
@@ -58,13 +56,13 @@ CodeEditor* MainWindow::getCurrentEditor() const {
 
 void MainWindow::newFile() {
     CodeEditor* editor = new CodeEditor();
-    tabWidget->addTab(editor, "Новый файл");
+    tabWidget->addTab(editor, tr("Новый файл"));
     tabWidget->setCurrentWidget(editor);
     updateEditors(settingsManager->loadSettings());
 }
 
 void MainWindow::openFile() {
-    QString fileName = QFileDialog::getOpenFileName(this, "Открыть файл", "", "Text Files (*.txt);;All Files (*)");
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), "", tr("Text Files (*.txt);;COM Files (*.com);;All Files (*)"));
     if (!fileName.isEmpty()) {
         QString content = fileController->openFile(fileName);
         CodeEditor* editor = new CodeEditor();

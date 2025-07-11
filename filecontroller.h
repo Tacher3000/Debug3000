@@ -5,9 +5,10 @@
 #include "fileprocessor.h"
 #include "scriptrunner.h"
 
-class FileController {
+class FileController : public QObject {
+    Q_OBJECT
 public:
-    FileController();
+    FileController(QObject* parent = nullptr);
     ~FileController();
     QString openFile(const QString& path);
     bool saveFile(const QString& path, const QString& content);

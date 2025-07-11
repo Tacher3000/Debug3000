@@ -1,11 +1,13 @@
 #ifndef FILEPROCESSOR_H
 #define FILEPROCESSOR_H
 
-class QString;
+#include <QObject>
+#include <QString>
 
-class FileProcessor {
+class FileProcessor : public QObject {
+    Q_OBJECT
 public:
-    FileProcessor();
+    FileProcessor(QObject* parent = nullptr);
     ~FileProcessor();
     QString readTxtFile(const QString& path);
     QString readComFile(const QString& path);

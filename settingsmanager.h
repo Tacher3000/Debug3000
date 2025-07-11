@@ -9,7 +9,7 @@
 class SettingsManager : public QObject {
     Q_OBJECT
 public:
-    SettingsManager();
+    SettingsManager(QObject* parent = nullptr);
     ~SettingsManager();
     QMap<QString, QVariant> loadSettings();
     void saveSettings(const QMap<QString, QVariant>& settings);
@@ -18,6 +18,8 @@ public:
 signals:
     void settingsChanged(const QMap<QString, QVariant>& settings);
 private:
+    static const QString ORGANIZATION_NAME;
+    static const QString APPLICATION_NAME;
     QSettings* settings;
 };
 

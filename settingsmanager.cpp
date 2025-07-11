@@ -1,12 +1,14 @@
 #include "settingsmanager.h"
 #include <QFont>
 
-SettingsManager::SettingsManager() {
-    settings = new QSettings("Tacher3000", "CodeEditor");
+const QString SettingsManager::ORGANIZATION_NAME = "Tacher3000";
+const QString SettingsManager::APPLICATION_NAME = "CodeEditor";
+
+SettingsManager::SettingsManager(QObject* parent) : QObject(parent) {
+    settings = new QSettings(ORGANIZATION_NAME, APPLICATION_NAME, this);
 }
 
 SettingsManager::~SettingsManager() {
-    delete settings;
 }
 
 QMap<QString, QVariant> SettingsManager::loadSettings() {
