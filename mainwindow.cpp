@@ -62,7 +62,7 @@ void MainWindow::newFile() {
 }
 
 void MainWindow::openFile() {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), "", tr("Text Files (*.txt);;COM Files (*.com);;All Files (*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), "", tr("Text and COM Files (*.txt *.com *.COM);;All Files (*)"));
     if (!fileName.isEmpty()) {
         QString content = fileController->openFile(fileName);
         CodeEditor* editor = new CodeEditor();

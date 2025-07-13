@@ -22,7 +22,7 @@ QString FileController::openFile(const QString& path) {
             return content;
         }
         return processor->readTxtFile(path);
-    } else if (path.endsWith(".com")) {
+    } else if (path.endsWith(".COM") || path.endsWith(".com")) {
         return processor->readComFile(path);
     }
     return QString();
