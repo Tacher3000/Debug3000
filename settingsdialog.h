@@ -6,8 +6,8 @@
 #include <QFontComboBox>
 #include <QSpinBox>
 #include <QCheckBox>
-#include <QLineEdit>
 #include <QPushButton>
+#include <QColorDialog>
 
 class SettingsDialog : public QDialog {
     Q_OBJECT
@@ -17,8 +17,12 @@ public:
     void setSettings(const QMap<QString, QVariant>& settings);
 signals:
     void saveSettingsRequested(const QMap<QString, QVariant>& settings);
+    void languageChanged(const QString& language);
 private slots:
     void resetToDefaults();
+    void selectBackgroundColor();
+    void selectTextColor();
+    void selectHighlightColor();
 private:
     QComboBox* themeComboBox;
     QFontComboBox* fontComboBox;
@@ -26,11 +30,20 @@ private:
     QCheckBox* standardLineNumberingCheckBox;
     QCheckBox* addressLineNumberingCheckBox;
     QCheckBox* lineWrapCheckBox;
-    QComboBox* encodingComboBox;
-    QSpinBox* tabSizeSpinBox;
+    QCheckBox* autoSaveCheckBox;
+    QSpinBox* autoSaveIntervalSpinBox;
+    QCheckBox* autoCompleteCheckBox;
+    QCheckBox* syntaxHighlightingCheckBox;
+    QComboBox* languageComboBox;
+    QPushButton* backgroundColorButton;
+    QPushButton* textColorButton;
+    QPushButton* highlightColorButton;
     QPushButton* resetButton;
     QPushButton* okButton;
     QPushButton* cancelButton;
+    QColor backgroundColor;
+    QColor textColor;
+    QColor highlightColor;
 };
 
 #endif // SETTINGSDIALOG_H

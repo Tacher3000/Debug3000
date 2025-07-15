@@ -1,6 +1,7 @@
 #include "filecontroller.h"
 #include <QFile>
 #include <QTextStream>
+#include <QFileInfo>
 
 FileController::FileController(QObject* parent) : QObject(parent) {
     processor = new FileProcessor(this);
@@ -28,5 +29,18 @@ QString FileController::openFile(const QString& path) {
     return QString();
 }
 
-bool FileController::saveFile(const QString& path, const QString& content) { return false; }
+bool FileController::saveFile(const QString& path, const QString& content) {
+    if (path.endsWith(".txt")) {
+        return processor->saveTxtFile(path, content);
+    }
+    return false; // COM файлы обрабатываются в saveFileAs
+}
+
+bool FileController::saveAsFile(const QString& path, const QString& content) {
+    if (path.endsWith(".txt")) {
+        return processor->saveTxtFile(path, content);
+    }
+    return false;
+}
+
 QString FileController::runScript(const QString& filePath) { return QString(); }

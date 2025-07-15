@@ -11,11 +11,37 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
+# Настройка переводов
+find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
+
+set(TS_FILES
+    translations/DebugCrafter_en.ts
+    translations/DebugCrafter_ru.ts
+)
+
 
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        mainwindow.h
+    main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    codeeditor.cpp
+    codeeditor.h
+    filecontroller.cpp
+    filecontroller.h
+    fileprocessor.cpp
+    fileprocessor.h
+    scriptrunner.cpp
+    scriptrunner.h
+    settingsmanager.cpp
+    settingsmanager.h
+    settingsdialog.cpp
+    settingsdialog.h
+)
+
+qt6_add_translations(
+    DebugCrafter
+    TS_FILES ${TS_FILES}
+    SOURCES ${PROJECT_SOURCES}
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

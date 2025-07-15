@@ -3,12 +3,21 @@
 #include <QTextBlock>
 #include <QPainter>
 #include <QFontMetrics>
+#include <QCompleter>
+#include <QStringListModel>
 
 const QString CodeEditor::ADDRESS_FORMAT = "CS:0000";
 
-CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent) {}
+CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent), enabled(true) {}
+
+void CodeEditor::SyntaxHighlighter::setEnabled(bool enabled) {
+    this->enabled = enabled;
+    rehighlight();
+}
 
 void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
+    if (!enabled) return;
+
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
     QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret)\\b", QRegularExpression::CaseInsensitiveOption);
@@ -28,9 +37,11 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     }
 }
 
-CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), tabSize(4) {
+CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), autoComplete(true), syntaxHighlighting(true) {
     lineNumberArea = new LineNumberArea(this);
     highlighter = new SyntaxHighlighter(document());
+    completer = new QCompleter(this);
+    setupAutoComplete();
     setFont(QFont("Courier New", 10));
     setTabStopDistance(4 * fontMetrics().horizontalAdvance(' '));
     connect(this, &QPlainTextEdit::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
@@ -44,46 +55,80 @@ CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNu
 CodeEditor::~CodeEditor() {
     delete lineNumberArea;
     delete highlighter;
+    delete completer;
 }
 
-void CodeEditor::setSyntaxHighlighting(const QString& theme) {}
+void CodeEditor::setupAutoComplete() {
+    QStringList instructions = {"mov", "int", "add", "sub", "cmp", "jmp", "je", "jne", "jz", "jnz", "jg", "jge", "jl", "jle", "mul", "div", "imul", "idiv", "inc", "dec", "push", "pop", "call", "ret"};
+    completer->setModel(new QStringListModel(instructions, completer));
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setWidget(this);
+    connect(completer, QOverload<const QString&>::of(&QCompleter::activated), this, [this](const QString& text) {
+        QTextCursor cursor = textCursor();
+        cursor.movePosition(QTextCursor::StartOfWord);
+        cursor.movePosition(QTextCursor::EndOfWord, QTextCursor::KeepAnchor);
+        cursor.insertText(text);
+    });
+}
+
 void CodeEditor::setStandardLineNumbering(bool enabled) {
     standardLineNumbering = enabled;
     updateLineNumberAreaWidth();
     lineNumberArea->update();
 }
+
 void CodeEditor::setAddressLineNumbering(bool enabled) {
     addressLineNumbering = enabled;
     updateLineNumberAreaWidth();
     lineNumberArea->update();
 }
+
 void CodeEditor::setCurrentLineHighlight(bool enabled) {
     currentLineHighlight = enabled;
     highlightCurrentLine();
 }
-void CodeEditor::setTheme(const QString& theme) {
+
+void CodeEditor::setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor) {
     this->theme = theme;
+    this->backgroundColor = backgroundColor;
+    this->textColor = textColor;
+    this->highlightColor = highlightColor;
+    QPalette palette = this->palette();
+    palette.setColor(QPalette::Base, backgroundColor);
+    palette.setColor(QPalette::Text, textColor);
+    setPalette(palette);
+    highlightCurrentLine();
 }
+
 void CodeEditor::setFont(const QFont& font) {
     QPlainTextEdit::setFont(font);
+    setTabStopDistance(4 * fontMetrics().horizontalAdvance(' '));
     updateLineNumberAreaWidth();
     lineNumberArea->update();
 }
+
 void CodeEditor::setLineWrap(bool enabled) {
     setLineWrapMode(enabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
+    lineWrap = enabled;
     lineNumberArea->update();
 }
-void CodeEditor::setEncoding(const QString& encoding) {
-    this->encoding = encoding;
+
+void CodeEditor::setAutoComplete(bool enabled) {
+    autoComplete = enabled;
+    if (enabled) {
+        completer->setWidget(this);
+    } else {
+        completer->setWidget(nullptr);
+    }
 }
-void CodeEditor::setTabKey(int size) {
-    tabSize = size;
-    setTabStopDistance(size * fontMetrics().horizontalAdvance(' '));
-    lineNumberArea->update();
+
+void CodeEditor::setSyntaxHighlighting(bool enabled) {
+    syntaxHighlighting = enabled;
+    static_cast<SyntaxHighlighter*>(highlighter)->setEnabled(enabled);
 }
+
 QString CodeEditor::getText() const { return toPlainText(); }
 void CodeEditor::setText(const QString& text) { setPlainText(text); }
-void CodeEditor::calculateAddresses() {}
 
 int CodeEditor::calculateInstructionLength(const QString& text) {
     QString trimmed = text.trimmed().toUpper();
@@ -245,7 +290,7 @@ void CodeEditor::highlightCurrentLine() {
     QList<QTextEdit::ExtraSelection> extraSelections;
     if (currentLineHighlight) {
         QTextEdit::ExtraSelection selection;
-        selection.format.setBackground(QColor(Qt::darkGray).lighter(160));
+        selection.format.setBackground(highlightColor);
         selection.format.setProperty(QTextFormat::FullWidthSelection, true);
         selection.cursor = textCursor();
         selection.cursor.clearSelection();

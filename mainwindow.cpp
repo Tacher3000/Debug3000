@@ -3,6 +3,11 @@
 #include <QToolBar>
 #include <QAction>
 #include <QFileDialog>
+#include <QTimer>
+#include <QMap>
+#include <QFileInfo>
+#include <QApplication>
+#include <QProcess>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(tr("DebugCrafter"));
@@ -16,38 +21,66 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
     connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) { tabWidget->removeTab(index); });
     settingsManager->applySettings();
+
+    QTimer* autoSaveTimer = new QTimer(this);
+    connect(autoSaveTimer, &QTimer::timeout, this, &MainWindow::saveFile);
+    connect(settingsManager, &SettingsManager::settingsChanged, this, [this, autoSaveTimer](const QMap<QString, QVariant>& settings) {
+        bool autoSave = settings["autoSave"].toBool();
+        int interval = settings["autoSaveInterval"].toInt();
+        if (autoSave) {
+            autoSaveTimer->start(interval * 60 * 1000);
+        } else {
+            autoSaveTimer->stop();
+        }
+    });
 }
 
 MainWindow::~MainWindow() {
 }
 
 void MainWindow::createMenus() {
-    QMenu* fileMenu = menuBar()->addMenu(tr("Файл"));
-    QAction* newAction = fileMenu->addAction(tr("Новый"));
-    QAction* openAction = fileMenu->addAction(tr("Открыть"));
-    QAction* saveAction = fileMenu->addAction(tr("Сохранить"));
-    QAction* runAction = fileMenu->addAction(tr("Запустить"));
-    QMenu* settingsMenu = menuBar()->addMenu(tr("Настройки"));
-    QAction* preferencesAction = settingsMenu->addAction(tr("Параметры"));
+    fileMenu = menuBar()->addMenu(tr("File"));
+    newAction = fileMenu->addAction(tr("New"));
+    openAction = fileMenu->addAction(tr("Open"));
+    saveAction = fileMenu->addAction(tr("Save"));
+    saveAsAction = fileMenu->addAction(tr("Save As"));
+    runAction = fileMenu->addAction(tr("Run"));
+    settingsMenu = menuBar()->addMenu(tr("Settings"));
+    settingsAction = settingsMenu->addAction(tr("Preferences"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveFileAs);
     connect(runAction, &QAction::triggered, this, &MainWindow::runCode);
-    connect(preferencesAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+    connect(settingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
 }
 
 void MainWindow::createToolBar() {
-    QToolBar* toolBar = addToolBar(tr("Tools"));
-    QAction* newAction = toolBar->addAction(QIcon(":/icons/new.png"), tr("Новый"));
-    QAction* openAction = toolBar->addAction(QIcon(":/icons/open.png"), tr("Открыть"));
-    QAction* saveAction = toolBar->addAction(QIcon(":/icons/save.png"), tr("Сохранить"));
-    QAction* runAction = toolBar->addAction(QIcon(":/icons/run.png"), tr("Запустить"));
-    QAction* settingsAction = toolBar->addAction(QIcon(":/icons/settings.png"), tr("Настройки"));
-    connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
-    connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
-    connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
-    connect(runAction, &QAction::triggered, this, &MainWindow::runCode);
-    connect(settingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+    toolBar = addToolBar(tr("Tools"));
+    toolBar->addAction(newAction);
+    toolBar->addAction(openAction);
+    toolBar->addAction(saveAction);
+    toolBar->addAction(saveAsAction);
+    toolBar->addAction(runAction);
+    toolBar->addAction(settingsAction);
+}
+
+void MainWindow::updateInterfaceTranslations() {
+    setWindowTitle(tr("DebugCrafter"));
+    fileMenu->setTitle(tr("File"));
+    newAction->setText(tr("New"));
+    openAction->setText(tr("Open"));
+    saveAction->setText(tr("Save"));
+    saveAsAction->setText(tr("Save As"));
+    runAction->setText(tr("Run"));
+    settingsMenu->setTitle(tr("Settings"));
+    settingsAction->setText(tr("Preferences"));
+    toolBar->setWindowTitle(tr("Tools"));
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        if (tabWidget->tabText(i) == "New File" || tabWidget->tabText(i) == tr("New File")) {
+            tabWidget->setTabText(i, tr("New File"));
+        }
+    }
 }
 
 CodeEditor* MainWindow::getCurrentEditor() const {
@@ -56,13 +89,13 @@ CodeEditor* MainWindow::getCurrentEditor() const {
 
 void MainWindow::newFile() {
     CodeEditor* editor = new CodeEditor();
-    tabWidget->addTab(editor, tr("Новый файл"));
+    tabWidget->addTab(editor, tr("New File"));
     tabWidget->setCurrentWidget(editor);
     updateEditors(settingsManager->loadSettings());
 }
 
 void MainWindow::openFile() {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), "", tr("Text and COM Files (*.txt *.com *.COM);;All Files (*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Text and COM Files (*.txt *.com *.COM);;All Files (*)"));
     if (!fileName.isEmpty()) {
         QString content = fileController->openFile(fileName);
         CodeEditor* editor = new CodeEditor();
@@ -70,10 +103,38 @@ void MainWindow::openFile() {
         tabWidget->addTab(editor, QFileInfo(fileName).fileName());
         tabWidget->setCurrentWidget(editor);
         updateEditors(settingsManager->loadSettings());
+        // Сохраняем путь к файлу во вкладке
+        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
     }
 }
 
 void MainWindow::saveFile() {
+    CodeEditor* editor = getCurrentEditor();
+    if (!editor) return;
+
+    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex()); // Используем путь из tooltip
+    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File") || fileName.endsWith(".com", Qt::CaseInsensitive)) {
+        // Для новых файлов или COM файлов вызываем "Сохранить как"
+        saveFileAs();
+        return;
+    }
+
+    if (fileController->saveFile(fileName, editor->getText())) {
+        tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
+    }
+}
+
+void MainWindow::saveFileAs() {
+    CodeEditor* editor = getCurrentEditor();
+    if (!editor) return;
+
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Save File As"), "", tr("Text Files (*.txt);;All Files (*)"));
+    if (fileName.isEmpty()) return;
+
+    if (fileController->saveAsFile(fileName, editor->getText())) {
+        tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
+        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName); // Сохраняем путь
+    }
 }
 
 void MainWindow::runCode() {
@@ -83,6 +144,7 @@ void MainWindow::showSettingsDialog() {
     SettingsDialog* dialog = new SettingsDialog(this);
     dialog->setSettings(settingsManager->loadSettings());
     connect(dialog, &SettingsDialog::saveSettingsRequested, settingsManager, &SettingsManager::saveSettings);
+    connect(dialog, &SettingsDialog::languageChanged, this, &MainWindow::onLanguageChanged);
     dialog->exec();
     delete dialog;
 }
@@ -91,13 +153,24 @@ void MainWindow::updateEditors(const QMap<QString, QVariant>& settings) {
     for (int i = 0; i < tabWidget->count(); ++i) {
         CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
         if (editor) {
-            editor->setTheme(settings["theme"].toString());
+            editor->setTheme(settings["theme"].toString(),
+                             settings["backgroundColor"].value<QColor>(),
+                             settings["textColor"].value<QColor>(),
+                             settings["highlightColor"].value<QColor>());
             editor->setFont(settings["font"].value<QFont>());
             editor->setStandardLineNumbering(settings["standardLineNumbering"].toBool());
             editor->setAddressLineNumbering(settings["addressLineNumbering"].toBool());
             editor->setLineWrap(settings["lineWrap"].toBool());
-            editor->setEncoding(settings["encoding"].toString());
-            editor->setTabKey(settings["tabSize"].toInt());
+            editor->setAutoComplete(settings["autoComplete"].toBool());
+            editor->setSyntaxHighlighting(settings["syntaxHighlighting"].toBool());
         }
     }
+}
+
+void MainWindow::onLanguageChanged(const QString& language) {
+    QMap<QString, QVariant> settings = settingsManager->loadSettings();
+    settings["language"] = language;
+    settingsManager->saveSettings(settings);
+    QProcess::startDetached(qApp->arguments()[0], qApp->arguments());
+    qApp->quit();
 }

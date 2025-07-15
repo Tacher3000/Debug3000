@@ -8,8 +8,8 @@
 #include <QPainter>
 #include <QTextBlock>
 #include <QRegularExpression>
-#include <QTextCharFormat>
 #include <QColor>
+#include <QCompleter>
 
 class LineNumberArea;
 
@@ -23,18 +23,16 @@ private slots:
 public:
     CodeEditor(QWidget* parent = nullptr);
     ~CodeEditor();
-    void setSyntaxHighlighting(const QString& theme);
     void setStandardLineNumbering(bool enabled);
     void setAddressLineNumbering(bool enabled);
     void setCurrentLineHighlight(bool enabled);
-    void setTheme(const QString& theme);
+    void setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor);
     void setFont(const QFont& font);
     void setLineWrap(bool enabled);
-    void setEncoding(const QString& encoding);
-    void setTabKey(int size);
+    void setAutoComplete(bool enabled);
+    void setSyntaxHighlighting(bool enabled);
     QString getText() const;
     void setText(const QString& text);
-    void calculateAddresses();
     void lineNumberAreaPaintEvent(QPaintEvent* event);
     int lineNumberAreaWidth();
 private:
@@ -49,22 +47,30 @@ private:
     bool addressLineNumbering;
     bool currentLineHighlight;
     bool lineWrap;
-    QString encoding;
-    int tabSize;
+    bool autoComplete;
+    bool syntaxHighlighting;
     LineNumberArea* lineNumberArea;
     QSyntaxHighlighter* highlighter;
+    QCompleter* completer;
+    QColor backgroundColor;
+    QColor textColor;
+    QColor highlightColor;
 
     class SyntaxHighlighter : public QSyntaxHighlighter {
     public:
         SyntaxHighlighter(QTextDocument* parent);
+        void setEnabled(bool enabled);
     protected:
         void highlightBlock(const QString& text) override;
+    private:
+        bool enabled;
     };
 
     void updateLineNumberAreaWidth();
     int calculateStandardWidth() const;
     int calculateAddressWidth() const;
     int calculateInstructionLength(const QString &text);
+    void setupAutoComplete();
 };
 
 class LineNumberArea : public QWidget {

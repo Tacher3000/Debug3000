@@ -1,5 +1,6 @@
 #include "settingsmanager.h"
 #include <QFont>
+#include <QColor>
 
 const QString SettingsManager::ORGANIZATION_NAME = "Tacher3000";
 const QString SettingsManager::APPLICATION_NAME = "CodeEditor";
@@ -14,12 +15,18 @@ SettingsManager::~SettingsManager() {
 QMap<QString, QVariant> SettingsManager::loadSettings() {
     QMap<QString, QVariant> result;
     result["theme"] = settings->value("theme", "Light").toString();
+    result["backgroundColor"] = settings->value("backgroundColor", QColor(Qt::white)).value<QColor>();
+    result["textColor"] = settings->value("textColor", QColor(Qt::black)).value<QColor>();
+    result["highlightColor"] = settings->value("highlightColor", QColor(Qt::darkGray).lighter(160)).value<QColor>();
     result["font"] = settings->value("font", QFont("Courier New", 10));
     result["standardLineNumbering"] = settings->value("standardLineNumbering", true).toBool();
     result["addressLineNumbering"] = settings->value("addressLineNumbering", true).toBool();
     result["lineWrap"] = settings->value("lineWrap", false).toBool();
-    result["encoding"] = settings->value("encoding", "UTF-8").toString();
-    result["tabSize"] = settings->value("tabSize", 4).toInt();
+    result["autoSave"] = settings->value("autoSave", false).toBool();
+    result["autoSaveInterval"] = settings->value("autoSaveInterval", 5).toInt();
+    result["autoComplete"] = settings->value("autoComplete", true).toBool();
+    result["syntaxHighlighting"] = settings->value("syntaxHighlighting", true).toBool();
+    result["language"] = settings->value("language", "English").toString();
     return result;
 }
 
@@ -38,11 +45,17 @@ void SettingsManager::applySettings() {
 void SettingsManager::resetToDefaults() {
     QMap<QString, QVariant> defaultSettings;
     defaultSettings["theme"] = "Light";
+    defaultSettings["backgroundColor"] = QColor(Qt::white);
+    defaultSettings["textColor"] = QColor(Qt::black);
+    defaultSettings["highlightColor"] = QColor(Qt::darkGray).lighter(160);
     defaultSettings["font"] = QFont("Courier New", 10);
     defaultSettings["standardLineNumbering"] = true;
     defaultSettings["addressLineNumbering"] = true;
     defaultSettings["lineWrap"] = false;
-    defaultSettings["encoding"] = "UTF-8";
-    defaultSettings["tabSize"] = 4;
+    defaultSettings["autoSave"] = false;
+    defaultSettings["autoSaveInterval"] = 5;
+    defaultSettings["autoComplete"] = true;
+    defaultSettings["syntaxHighlighting"] = true;
+    defaultSettings["language"] = "English";
     saveSettings(defaultSettings);
 }

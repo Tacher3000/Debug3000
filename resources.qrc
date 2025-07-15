@@ -3,4 +3,9 @@
         <file>dark.qss</file>
         <file>light.qss</file>
     </qresource>
+    <qresource prefix="/">
+        <file>translations/DebugCrafter_en.ts</file>
+        <file>translations/DebugCrafter_ru.qm</file>
+        <file>translations/DebugCrafter_ru.ts</file>
+    </qresource>
 </RCC>
