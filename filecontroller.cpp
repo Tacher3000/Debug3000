@@ -44,7 +44,7 @@ bool FileController::saveAsFile(const QString& path, const QString& content) {
 }
 
 QString FileController::runScript(const QString& filePath) {
-    if (filePath.endsWith(".txt")) {
+    if (filePath.endsWith(".txt") || filePath.endsWith(".com") || filePath.endsWith(".COM")) {
         return runner->runDebugScript(filePath);
     }
     return QString();

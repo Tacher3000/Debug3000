@@ -3,6 +3,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QDialogButtonBox>
+#include <QRegularExpressionValidator>
+#include <QColorDialog>
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle(tr("Settings"));
@@ -56,15 +58,6 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     autoSaveCheckBox = new QCheckBox(tr("Enable Auto-Save"), this);
     mainLayout->addWidget(autoSaveCheckBox);
 
-    QLabel* autoSaveIntervalLabel = new QLabel(tr("Auto-Save Interval (minutes):"), this);
-    autoSaveIntervalSpinBox = new QSpinBox(this);
-    autoSaveIntervalSpinBox->setRange(1, 10);
-    mainLayout->addWidget(autoSaveIntervalLabel);
-    mainLayout->addWidget(autoSaveIntervalSpinBox);
-
-    autoCompleteCheckBox = new QCheckBox(tr("Enable Auto-Completion"), this);
-    mainLayout->addWidget(autoCompleteCheckBox);
-
     syntaxHighlightingCheckBox = new QCheckBox(tr("Enable Syntax Highlighting"), this);
     mainLayout->addWidget(syntaxHighlightingCheckBox);
 
@@ -74,6 +67,30 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     mainLayout->addWidget(languageLabel);
     mainLayout->addWidget(languageComboBox);
     connect(languageComboBox, &QComboBox::currentTextChanged, this, &SettingsDialog::languageChanged);
+
+    showMemoryDumpCheckBox = new QCheckBox(tr("Show Memory Dump"), this);
+    mainLayout->addWidget(showMemoryDumpCheckBox);
+
+    QLabel* memoryDumpSegmentLabel = new QLabel(tr("Memory Dump Segment:"), this);
+    memoryDumpSegmentEdit = new QLineEdit(this);
+    memoryDumpSegmentEdit->setPlaceholderText("1000");
+    memoryDumpSegmentEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("[0-9A-Fa-f]{1,4}"), memoryDumpSegmentEdit));
+    mainLayout->addWidget(memoryDumpSegmentLabel);
+    mainLayout->addWidget(memoryDumpSegmentEdit);
+
+    QLabel* memoryDumpOffsetLabel = new QLabel(tr("Memory Dump Offset:"), this);
+    memoryDumpOffsetEdit = new QLineEdit(this);
+    memoryDumpOffsetEdit->setPlaceholderText("200");
+    memoryDumpOffsetEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("[0-9A-Fa-f]{1,4}"), memoryDumpOffsetEdit));
+    mainLayout->addWidget(memoryDumpOffsetLabel);
+    mainLayout->addWidget(memoryDumpOffsetEdit);
+
+    QLabel* memoryDumpLineCountLabel = new QLabel(tr("Memory Dump Line Count:"), this);
+    memoryDumpLineCountSpinBox = new QSpinBox(this);
+    memoryDumpLineCountSpinBox->setRange(1, 32);
+    memoryDumpLineCountSpinBox->setValue(8);
+    mainLayout->addWidget(memoryDumpLineCountLabel);
+    mainLayout->addWidget(memoryDumpLineCountSpinBox);
 
     resetButton = new QPushButton(tr("Reset to Defaults"), this);
     mainLayout->addWidget(resetButton);
@@ -106,10 +123,12 @@ QMap<QString, QVariant> SettingsDialog::getSettings() const {
     settings["addressLineNumbering"] = addressLineNumberingCheckBox->isChecked();
     settings["lineWrap"] = lineWrapCheckBox->isChecked();
     settings["autoSave"] = autoSaveCheckBox->isChecked();
-    settings["autoSaveInterval"] = autoSaveIntervalSpinBox->value();
-    settings["autoComplete"] = autoCompleteCheckBox->isChecked();
     settings["syntaxHighlighting"] = syntaxHighlightingCheckBox->isChecked();
     settings["language"] = languageComboBox->currentText();
+    settings["showMemoryDump"] = showMemoryDumpCheckBox->isChecked();
+    settings["memoryDumpSegment"] = memoryDumpSegmentEdit->text();
+    settings["memoryDumpOffset"] = memoryDumpOffsetEdit->text();
+    settings["memoryDumpLineCount"] = memoryDumpLineCountSpinBox->value();
     return settings;
 }
 
@@ -125,10 +144,12 @@ void SettingsDialog::setSettings(const QMap<QString, QVariant>& settings) {
     addressLineNumberingCheckBox->setChecked(settings["addressLineNumbering"].toBool());
     lineWrapCheckBox->setChecked(settings["lineWrap"].toBool());
     autoSaveCheckBox->setChecked(settings["autoSave"].toBool());
-    autoSaveIntervalSpinBox->setValue(settings["autoSaveInterval"].toInt());
-    autoCompleteCheckBox->setChecked(settings["autoComplete"].toBool());
     syntaxHighlightingCheckBox->setChecked(settings["syntaxHighlighting"].toBool());
     languageComboBox->setCurrentText(settings["language"].toString());
+    showMemoryDumpCheckBox->setChecked(settings["showMemoryDump"].toBool());
+    memoryDumpSegmentEdit->setText(settings["memoryDumpSegment"].toString());
+    memoryDumpOffsetEdit->setText(settings["memoryDumpOffset"].toString());
+    memoryDumpLineCountSpinBox->setValue(settings["memoryDumpLineCount"].toInt());
 }
 
 void SettingsDialog::resetToDefaults() {
@@ -143,10 +164,12 @@ void SettingsDialog::resetToDefaults() {
     addressLineNumberingCheckBox->setChecked(true);
     lineWrapCheckBox->setChecked(false);
     autoSaveCheckBox->setChecked(false);
-    autoSaveIntervalSpinBox->setValue(5);
-    autoCompleteCheckBox->setChecked(true);
     syntaxHighlightingCheckBox->setChecked(true);
     languageComboBox->setCurrentText(tr("English"));
+    showMemoryDumpCheckBox->setChecked(false);
+    memoryDumpSegmentEdit->setText("1000");
+    memoryDumpOffsetEdit->setText("200");
+    memoryDumpLineCountSpinBox->setValue(8);
 }
 
 void SettingsDialog::selectBackgroundColor() {

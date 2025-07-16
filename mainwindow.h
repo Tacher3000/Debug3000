@@ -25,6 +25,7 @@ private slots:
     void showSettingsDialog();
     void updateEditors(const QMap<QString, QVariant>& settings);
     void onLanguageChanged(const QString& language);
+    void handleTextChanged();
 private:
     QTabWidget* tabWidget;
     SettingsManager* settingsManager;

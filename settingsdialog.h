@@ -8,6 +8,7 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QColorDialog>
+#include <QLineEdit>
 
 class SettingsDialog : public QDialog {
     Q_OBJECT
@@ -31,13 +32,15 @@ private:
     QCheckBox* addressLineNumberingCheckBox;
     QCheckBox* lineWrapCheckBox;
     QCheckBox* autoSaveCheckBox;
-    QSpinBox* autoSaveIntervalSpinBox;
-    QCheckBox* autoCompleteCheckBox;
     QCheckBox* syntaxHighlightingCheckBox;
     QComboBox* languageComboBox;
     QPushButton* backgroundColorButton;
     QPushButton* textColorButton;
     QPushButton* highlightColorButton;
+    QCheckBox* showMemoryDumpCheckBox;
+    QLineEdit* memoryDumpSegmentEdit;
+    QLineEdit* memoryDumpOffsetEdit;
+    QSpinBox* memoryDumpLineCountSpinBox;
     QPushButton* resetButton;
     QPushButton* okButton;
     QPushButton* cancelButton;

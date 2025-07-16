@@ -3,7 +3,6 @@
 #include <QToolBar>
 #include <QAction>
 #include <QFileDialog>
-#include <QTimer>
 #include <QMap>
 #include <QFileInfo>
 #include <QApplication>
@@ -21,18 +20,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
     connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) { tabWidget->removeTab(index); });
     settingsManager->applySettings();
-
-    QTimer* autoSaveTimer = new QTimer(this);
-    connect(autoSaveTimer, &QTimer::timeout, this, &MainWindow::saveFile);
-    connect(settingsManager, &SettingsManager::settingsChanged, this, [this, autoSaveTimer](const QMap<QString, QVariant>& settings) {
-        bool autoSave = settings["autoSave"].toBool();
-        int interval = settings["autoSaveInterval"].toInt();
-        if (autoSave) {
-            autoSaveTimer->start(interval * 60 * 1000);
-        } else {
-            autoSaveTimer->stop();
-        }
-    });
 }
 
 MainWindow::~MainWindow() {
@@ -91,7 +78,11 @@ void MainWindow::newFile() {
     CodeEditor* editor = new CodeEditor();
     tabWidget->addTab(editor, tr("New File"));
     tabWidget->setCurrentWidget(editor);
-    updateEditors(settingsManager->loadSettings());
+    QMap<QString, QVariant> settings = settingsManager->loadSettings();
+    updateEditors(settings);
+    if (settings["autoSave"].toBool()) {
+        connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
+    }
 }
 
 void MainWindow::openFile() {
@@ -102,8 +93,12 @@ void MainWindow::openFile() {
         editor->setText(content);
         tabWidget->addTab(editor, QFileInfo(fileName).fileName());
         tabWidget->setCurrentWidget(editor);
-        updateEditors(settingsManager->loadSettings());
+        QMap<QString, QVariant> settings = settingsManager->loadSettings();
+        updateEditors(settings);
         tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+        if (settings["autoSave"].toBool()) {
+            connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
+        }
     }
 }
 
@@ -140,17 +135,19 @@ void MainWindow::runCode() {
     if (!editor) return;
 
     QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
-    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("Новый файл")) {
-        fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
+    bool isComFile = fileName.endsWith(".com", Qt::CaseInsensitive);
+
+    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File")) {
+        fileName = QCoreApplication::applicationDirPath() + (isComFile ? "/temp_run.com" : "/temp_run.txt");
         if (!fileController->saveFile(fileName, editor->getText())) {
-            qDebug() << "Не удалось сохранить временный файл для выполнения";
+            qDebug() << "Не удалось сохранить временный файл для выполнения:" << fileName;
             return;
         }
     }
 
     fileController->runScript(fileName);
 
-    if (fileName.endsWith("temp_run.txt")) {
+    if (fileName.endsWith("temp_run.txt") || fileName.endsWith("temp_run.com")) {
         QFile::remove(fileName);
     }
 }
@@ -160,6 +157,18 @@ void MainWindow::showSettingsDialog() {
     dialog->setSettings(settingsManager->loadSettings());
     connect(dialog, &SettingsDialog::saveSettingsRequested, settingsManager, &SettingsManager::saveSettings);
     connect(dialog, &SettingsDialog::languageChanged, this, &MainWindow::onLanguageChanged);
+    connect(dialog, &SettingsDialog::saveSettingsRequested, this, [this](const QMap<QString, QVariant>& settings) {
+        bool autoSave = settings["autoSave"].toBool();
+        for (int i = 0; i < tabWidget->count(); ++i) {
+            CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+            if (editor) {
+                disconnect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
+                if (autoSave) {
+                    connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
+                }
+            }
+        }
+    });
     dialog->exec();
     delete dialog;
 }
@@ -176,8 +185,11 @@ void MainWindow::updateEditors(const QMap<QString, QVariant>& settings) {
             editor->setStandardLineNumbering(settings["standardLineNumbering"].toBool());
             editor->setAddressLineNumbering(settings["addressLineNumbering"].toBool());
             editor->setLineWrap(settings["lineWrap"].toBool());
-            editor->setAutoComplete(settings["autoComplete"].toBool());
             editor->setSyntaxHighlighting(settings["syntaxHighlighting"].toBool());
+            editor->setShowMemoryDump(settings["showMemoryDump"].toBool(),
+                                      settings["memoryDumpSegment"].toString(),
+                                      settings["memoryDumpOffset"].toString(),
+                                      settings["memoryDumpLineCount"].toInt());
         }
     }
 }
@@ -188,4 +200,11 @@ void MainWindow::onLanguageChanged(const QString& language) {
     settingsManager->saveSettings(settings);
     QProcess::startDetached(qApp->arguments()[0], qApp->arguments());
     qApp->quit();
+}
+
+void MainWindow::handleTextChanged() {
+    QMap<QString, QVariant> settings = settingsManager->loadSettings();
+    if (settings["autoSave"].toBool()) {
+        saveFile();
+    }
 }

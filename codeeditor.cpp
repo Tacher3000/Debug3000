@@ -3,8 +3,6 @@
 #include <QTextBlock>
 #include <QPainter>
 #include <QFontMetrics>
-#include <QCompleter>
-#include <QStringListModel>
 
 const QString CodeEditor::ADDRESS_FORMAT = "CS:0000";
 
@@ -37,38 +35,27 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     }
 }
 
-CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), autoComplete(true), syntaxHighlighting(true) {
+CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), syntaxHighlighting(true), showMemoryDump(false) {
     lineNumberArea = new LineNumberArea(this);
+    memoryDumpArea = new MemoryDumpArea(this);
     highlighter = new SyntaxHighlighter(document());
-    completer = new QCompleter(this);
-    setupAutoComplete();
     setFont(QFont("Courier New", 10));
     setTabStopDistance(4 * fontMetrics().horizontalAdvance(' '));
     connect(this, &QPlainTextEdit::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &QPlainTextEdit::updateRequest, this, &CodeEditor::updateLineNumberArea);
+    connect(this, &QPlainTextEdit::updateRequest, this, &CodeEditor::updateMemoryDumpArea);
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
+    connect(this, &QPlainTextEdit::textChanged, this, &CodeEditor::updateMemoryDump);
     updateLineNumberAreaWidth();
     highlightCurrentLine();
     lineNumberArea->setVisible(true);
+    memoryDumpArea->setVisible(false);
 }
 
 CodeEditor::~CodeEditor() {
     delete lineNumberArea;
+    delete memoryDumpArea;
     delete highlighter;
-    delete completer;
-}
-
-void CodeEditor::setupAutoComplete() {
-    QStringList instructions = {"mov", "int", "add", "sub", "cmp", "jmp", "je", "jne", "jz", "jnz", "jg", "jge", "jl", "jle", "mul", "div", "imul", "idiv", "inc", "dec", "push", "pop", "call", "ret"};
-    completer->setModel(new QStringListModel(instructions, completer));
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setWidget(this);
-    connect(completer, QOverload<const QString&>::of(&QCompleter::activated), this, [this](const QString& text) {
-        QTextCursor cursor = textCursor();
-        cursor.movePosition(QTextCursor::StartOfWord);
-        cursor.movePosition(QTextCursor::EndOfWord, QTextCursor::KeepAnchor);
-        cursor.insertText(text);
-    });
 }
 
 void CodeEditor::setStandardLineNumbering(bool enabled) {
@@ -88,6 +75,16 @@ void CodeEditor::setCurrentLineHighlight(bool enabled) {
     highlightCurrentLine();
 }
 
+void CodeEditor::setShowMemoryDump(bool enabled, const QString& segment, const QString& offset, int lineCount) {
+    showMemoryDump = enabled;
+    memoryDumpSegment = segment;
+    memoryDumpOffset = offset;
+    memoryDumpLineCount = lineCount;
+    memoryDumpArea->setVisible(enabled);
+    updateLineNumberAreaWidth();
+    memoryDumpArea->update();
+}
+
 void CodeEditor::setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor) {
     this->theme = theme;
     this->backgroundColor = backgroundColor;
@@ -105,21 +102,14 @@ void CodeEditor::setFont(const QFont& font) {
     setTabStopDistance(4 * fontMetrics().horizontalAdvance(' '));
     updateLineNumberAreaWidth();
     lineNumberArea->update();
+    memoryDumpArea->update();
 }
 
 void CodeEditor::setLineWrap(bool enabled) {
     setLineWrapMode(enabled ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
     lineWrap = enabled;
     lineNumberArea->update();
-}
-
-void CodeEditor::setAutoComplete(bool enabled) {
-    autoComplete = enabled;
-    if (enabled) {
-        completer->setWidget(this);
-    } else {
-        completer->setWidget(nullptr);
-    }
+    memoryDumpArea->update();
 }
 
 void CodeEditor::setSyntaxHighlighting(bool enabled) {
@@ -132,7 +122,7 @@ void CodeEditor::setText(const QString& text) { setPlainText(text); }
 
 int CodeEditor::calculateInstructionLength(const QString& text) {
     QString trimmed = text.trimmed().toUpper();
-    if (trimmed.isEmpty() || trimmed.startsWith("A ")) return 0;
+    if (trimmed.isEmpty() || trimmed.startsWith("A ") || trimmed.startsWith("E ")) return 0;
 
     QStringList parts = trimmed.split(QRegularExpression("\\s+|,"), Qt::SkipEmptyParts);
     if (parts.isEmpty()) return 0;
@@ -212,8 +202,12 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent* event) {
     while (currentBlock.isValid()) {
         QString trimmed = currentBlock.text().trimmed();
 
+        if (trimmed.startsWith("E ", Qt::CaseInsensitive)) {
+            processEditCommand(trimmed, currentBlockNumber);
+        }
+
         if (addressLineNumbering) {
-            if (trimmed.startsWith("a ", Qt::CaseInsensitive)) {
+            if (trimmed.startsWith("A ", Qt::CaseInsensitive)) {
                 QStringList parts = trimmed.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
                 if (parts.size() >= 2) {
                     bool ok;
@@ -262,21 +256,67 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent* event) {
     }
 }
 
+void CodeEditor::memoryDumpAreaPaintEvent(QPaintEvent* event) {
+    if (!showMemoryDump) return;
+
+    QPainter painter(memoryDumpArea);
+    painter.fillRect(event->rect(), Qt::lightGray);
+
+    int top = 0;
+    bool ok;
+    int offset = memoryDumpOffset.toInt(&ok, 16);
+    if (!ok) offset = 0x200;
+
+    int segment = memoryDumpSegment.toInt(&ok, 16);
+    if (!ok) segment = 0x1000;
+
+    for (int i = 0; i < memoryDumpLineCount; ++i) {
+        QString dumpLine;
+        int currentOffset = offset + i * 16;
+        dumpLine += QString("%1:%2  ")
+                        .arg(segment, 4, 16, QChar('0'))
+                        .arg(currentOffset, 4, 16, QChar('0'))
+                        .toUpper();
+
+        QByteArray data = memoryChanges.value(currentOffset, QByteArray(16, 0));
+        for (int j = 0; j < 16; ++j) {
+            dumpLine += QString("%1 ").arg((unsigned char)data[j], 2, 16, QChar('0')).toUpper();
+        }
+        dumpLine += " ";
+        for (int j = 0; j < 16; ++j) {
+            unsigned char c = data[j];
+            dumpLine += (c >= 32 && c <= 126) ? QChar(c) : QChar('.');
+        }
+
+        painter.setPen(Qt::black);
+        painter.drawText(MARGIN_LEFT, top + i * fontMetrics().height(), memoryDumpAreaWidth() - MARGIN_RIGHT, fontMetrics().height(),
+                         Qt::AlignLeft | Qt::AlignVCenter, dumpLine);
+    }
+}
+
 void CodeEditor::resizeEvent(QResizeEvent* event) {
     QPlainTextEdit::resizeEvent(event);
     QRect cr = contentsRect();
     lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+    memoryDumpArea->setGeometry(QRect(cr.right() - memoryDumpAreaWidth(), cr.top(), memoryDumpAreaWidth(), cr.height()));
     lineNumberArea->update();
+    memoryDumpArea->update();
 }
 
 void CodeEditor::updateLineNumberAreaWidth() {
     int width = lineNumberAreaWidth();
-    setViewportMargins(width, 0, 0, 0);
+    setViewportMargins(width, 0, showMemoryDump ? memoryDumpAreaWidth() : 0, 0);
     lineNumberArea->update();
+    memoryDumpArea->update();
 }
 
 int CodeEditor::lineNumberAreaWidth() {
     return calculateStandardWidth() + calculateAddressWidth();
+}
+
+int CodeEditor::memoryDumpAreaWidth() {
+    if (!showMemoryDump) return 0;
+    return fontMetrics().horizontalAdvance("XXXX:XXXX  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................") + MARGIN_LEFT + MARGIN_RIGHT;
 }
 
 void CodeEditor::updateLineNumberArea(const QRect& rect, int dy) {
@@ -284,6 +324,13 @@ void CodeEditor::updateLineNumberArea(const QRect& rect, int dy) {
         lineNumberArea->scroll(0, dy);
     }
     lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
+}
+
+void CodeEditor::updateMemoryDumpArea(const QRect& rect, int dy) {
+    if (dy) {
+        memoryDumpArea->scroll(0, dy);
+    }
+    memoryDumpArea->update(0, rect.y(), memoryDumpArea->width(), rect.height());
 }
 
 void CodeEditor::highlightCurrentLine() {
@@ -298,6 +345,22 @@ void CodeEditor::highlightCurrentLine() {
     }
     setExtraSelections(extraSelections);
     lineNumberArea->update();
+    memoryDumpArea->update();
+}
+
+void CodeEditor::updateMemoryDump() {
+    memoryChanges.clear();
+    QTextBlock block = document()->begin();
+    int blockNumber = 0;
+    while (block.isValid()) {
+        QString line = block.text().trimmed();
+        if (line.startsWith("E ", Qt::CaseInsensitive)) {
+            processEditCommand(line, blockNumber);
+        }
+        block = block.next();
+        ++blockNumber;
+    }
+    memoryDumpArea->update();
 }
 
 int CodeEditor::calculateStandardWidth() const {
@@ -318,4 +381,51 @@ int CodeEditor::calculateAddressWidth() const {
         return 0;
     }
     return fontMetrics().horizontalAdvance(ADDRESS_FORMAT) + ADDRESS_EXTRA_WIDTH;
+}
+
+void CodeEditor::processEditCommand(const QString& line, int blockNumber) {
+    QString trimmed = line.trimmed();
+    QRegularExpression re("^E\\s+([0-9A-Fa-f]+)\\s+(.+)$", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = re.match(trimmed);
+    if (!match.hasMatch()) return;
+
+    bool ok;
+    int address = match.captured(1).toInt(&ok, 16);
+    if (!ok) return;
+
+    QString dataPart = match.captured(2);
+    QByteArray data;
+
+    QRegularExpression stringRe("^\"(.+)\"$", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch stringMatch = stringRe.match(dataPart);
+    if (stringMatch.hasMatch()) {
+        QString str = stringMatch.captured(1);
+        data = str.toLatin1();
+    } else {
+        QStringList byteParts = dataPart.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        for (const QString& byteStr : byteParts) {
+            int byte = byteStr.toInt(&ok, 16);
+            if (ok && byte >= 0 && byte <= 255) {
+                data.append(static_cast<char>(byte));
+            }
+        }
+    }
+
+    if (!data.isEmpty()) {
+        int currentAddress = address;
+        int dataSize = data.size();
+        int pos = 0;
+
+        while (pos < dataSize) {
+            QByteArray block;
+            int bytesToTake = qMin(16, dataSize - pos);
+            block = data.mid(pos, bytesToTake);
+            if (block.size() < 16) {
+                block.resize(16, 0);
+            }
+            memoryChanges[currentAddress] = block;
+            pos += 16;
+            currentAddress += 16;
+        }
+    }
 }

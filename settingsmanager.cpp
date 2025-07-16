@@ -23,10 +23,12 @@ QMap<QString, QVariant> SettingsManager::loadSettings() {
     result["addressLineNumbering"] = settings->value("addressLineNumbering", true).toBool();
     result["lineWrap"] = settings->value("lineWrap", false).toBool();
     result["autoSave"] = settings->value("autoSave", false).toBool();
-    result["autoSaveInterval"] = settings->value("autoSaveInterval", 5).toInt();
-    result["autoComplete"] = settings->value("autoComplete", true).toBool();
     result["syntaxHighlighting"] = settings->value("syntaxHighlighting", true).toBool();
     result["language"] = settings->value("language", "English").toString();
+    result["showMemoryDump"] = settings->value("showMemoryDump", false).toBool();
+    result["memoryDumpSegment"] = settings->value("memoryDumpSegment", "1000").toString();
+    result["memoryDumpOffset"] = settings->value("memoryDumpOffset", "200").toString();
+    result["memoryDumpLineCount"] = settings->value("memoryDumpLineCount", 8).toInt();
     return result;
 }
 
@@ -53,9 +55,11 @@ void SettingsManager::resetToDefaults() {
     defaultSettings["addressLineNumbering"] = true;
     defaultSettings["lineWrap"] = false;
     defaultSettings["autoSave"] = false;
-    defaultSettings["autoSaveInterval"] = 5;
-    defaultSettings["autoComplete"] = true;
     defaultSettings["syntaxHighlighting"] = true;
     defaultSettings["language"] = "English";
+    defaultSettings["showMemoryDump"] = false;
+    defaultSettings["memoryDumpSegment"] = "1000";
+    defaultSettings["memoryDumpOffset"] = "200";
+    defaultSettings["memoryDumpLineCount"] = 8;
     saveSettings(defaultSettings);
 }

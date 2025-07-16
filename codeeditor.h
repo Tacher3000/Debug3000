@@ -9,9 +9,10 @@
 #include <QTextBlock>
 #include <QRegularExpression>
 #include <QColor>
-#include <QCompleter>
+#include <QMap>
 
 class LineNumberArea;
+class MemoryDumpArea;
 
 class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
@@ -19,6 +20,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 private slots:
     void updateLineNumberArea(const QRect& rect, int dy);
+    void updateMemoryDumpArea(const QRect& rect, int dy);
     void highlightCurrentLine();
 public:
     CodeEditor(QWidget* parent = nullptr);
@@ -29,12 +31,15 @@ public:
     void setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor);
     void setFont(const QFont& font);
     void setLineWrap(bool enabled);
-    void setAutoComplete(bool enabled);
     void setSyntaxHighlighting(bool enabled);
+    void setShowMemoryDump(bool enabled, const QString& segment, const QString& offset, int lineCount);
     QString getText() const;
     void setText(const QString& text);
     void lineNumberAreaPaintEvent(QPaintEvent* event);
+    void memoryDumpAreaPaintEvent(QPaintEvent* event);
     int lineNumberAreaWidth();
+    int memoryDumpAreaWidth();
+    void updateMemoryDump();
 private:
     static const int MARGIN_LEFT = 5;
     static const int MARGIN_RIGHT = 10;
@@ -47,14 +52,18 @@ private:
     bool addressLineNumbering;
     bool currentLineHighlight;
     bool lineWrap;
-    bool autoComplete;
     bool syntaxHighlighting;
+    bool showMemoryDump;
+    QString memoryDumpSegment;
+    QString memoryDumpOffset;
     LineNumberArea* lineNumberArea;
+    MemoryDumpArea* memoryDumpArea;
     QSyntaxHighlighter* highlighter;
-    QCompleter* completer;
     QColor backgroundColor;
     QColor textColor;
     QColor highlightColor;
+    int memoryDumpLineCount;
+    QMap<int, QByteArray> memoryChanges;
 
     class SyntaxHighlighter : public QSyntaxHighlighter {
     public:
@@ -70,7 +79,7 @@ private:
     int calculateStandardWidth() const;
     int calculateAddressWidth() const;
     int calculateInstructionLength(const QString &text);
-    void setupAutoComplete();
+    void processEditCommand(const QString& line, int blockNumber);
 };
 
 class LineNumberArea : public QWidget {
@@ -82,6 +91,20 @@ public:
 protected:
     void paintEvent(QPaintEvent* event) override {
         codeEditor->lineNumberAreaPaintEvent(event);
+    }
+private:
+    CodeEditor* codeEditor;
+};
+
+class MemoryDumpArea : public QWidget {
+public:
+    MemoryDumpArea(CodeEditor* editor) : QWidget(editor), codeEditor(editor) {}
+    QSize sizeHint() const override {
+        return QSize(codeEditor->memoryDumpAreaWidth(), 0);
+    }
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        codeEditor->memoryDumpAreaPaintEvent(event);
     }
 private:
     CodeEditor* codeEditor;
