@@ -33,7 +33,7 @@ bool FileController::saveFile(const QString& path, const QString& content) {
     if (path.endsWith(".txt")) {
         return processor->saveTxtFile(path, content);
     }
-    return false; // COM файлы обрабатываются в saveFileAs
+    return false;
 }
 
 bool FileController::saveAsFile(const QString& path, const QString& content) {
@@ -43,4 +43,9 @@ bool FileController::saveAsFile(const QString& path, const QString& content) {
     return false;
 }
 
-QString FileController::runScript(const QString& filePath) { return QString(); }
+QString FileController::runScript(const QString& filePath) {
+    if (filePath.endsWith(".txt")) {
+        return runner->runDebugScript(filePath);
+    }
+    return QString();
+}

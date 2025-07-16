@@ -103,7 +103,6 @@ void MainWindow::openFile() {
         tabWidget->addTab(editor, QFileInfo(fileName).fileName());
         tabWidget->setCurrentWidget(editor);
         updateEditors(settingsManager->loadSettings());
-        // Сохраняем путь к файлу во вкладке
         tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
     }
 }
@@ -112,9 +111,8 @@ void MainWindow::saveFile() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
-    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex()); // Используем путь из tooltip
+    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
     if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File") || fileName.endsWith(".com", Qt::CaseInsensitive)) {
-        // Для новых файлов или COM файлов вызываем "Сохранить как"
         saveFileAs();
         return;
     }
@@ -133,11 +131,28 @@ void MainWindow::saveFileAs() {
 
     if (fileController->saveAsFile(fileName, editor->getText())) {
         tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
-        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName); // Сохраняем путь
+        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
     }
 }
 
 void MainWindow::runCode() {
+    CodeEditor* editor = getCurrentEditor();
+    if (!editor) return;
+
+    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
+    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("Новый файл")) {
+        fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
+        if (!fileController->saveFile(fileName, editor->getText())) {
+            qDebug() << "Не удалось сохранить временный файл для выполнения";
+            return;
+        }
+    }
+
+    fileController->runScript(fileName);
+
+    if (fileName.endsWith("temp_run.txt")) {
+        QFile::remove(fileName);
+    }
 }
 
 void MainWindow::showSettingsDialog() {
