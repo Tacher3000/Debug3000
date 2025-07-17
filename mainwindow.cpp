@@ -7,29 +7,59 @@
 #include <QFileInfo>
 #include <QApplication>
 #include <QProcess>
+#include <QMessageBox>
+#include <QCloseEvent>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(tr("DebugCrafter"));
-
     tabWidget = new QTabWidget(this);
     tabWidget->setTabsClosable(true);
     setCentralWidget(tabWidget);
-
     settingsManager = new SettingsManager(this);
     fileController = new FileController(this);
-
     createMenus();
     createToolBar();
-
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
-    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) {
-        tabWidget->removeTab(index);
-    });
-
+    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) { tabWidget->removeTab(index); });
     settingsManager->applySettings();
 }
 
 MainWindow::~MainWindow() {
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    bool hasUnsavedChanges = false;
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (editor && editor->document()->isModified()) {
+            hasUnsavedChanges = true;
+            break;
+        }
+    }
+
+    if (hasUnsavedChanges) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Unsaved Changes"),
+            tr("You have unsaved changes. Would you like to save them before exiting?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+            );
+
+        if (reply == QMessageBox::Save) {
+            for (int i = 0; i < tabWidget->count(); ++i) {
+                CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+                if (editor && editor->document()->isModified()) {
+                    tabWidget->setCurrentIndex(i);
+                    saveFile();
+                }
+            }
+        } else if (reply == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        }
+    }
+
+    event->accept();
 }
 
 void MainWindow::createMenus() {
@@ -41,7 +71,6 @@ void MainWindow::createMenus() {
     runAction = fileMenu->addAction(tr("Run"));
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
-
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
@@ -122,6 +151,7 @@ void MainWindow::saveFile() {
 
     if (fileController->saveFile(fileName, editor->getText())) {
         tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
+        editor->document()->setModified(false);
     }
 }
 
@@ -134,6 +164,7 @@ void MainWindow::saveFileAs() {
         if (fileController->saveAsFile(fileName, editor->getText())) {
             tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
             tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+            editor->document()->setModified(false);
         }
     }
 }
@@ -204,6 +235,36 @@ void MainWindow::updateEditors(const QMap<QString, QVariant>& settings) {
 }
 
 void MainWindow::onLanguageChanged(const QString& language) {
+    bool hasUnsavedChanges = false;
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+        if (editor && editor->document()->isModified()) {
+            hasUnsavedChanges = true;
+            break;
+        }
+    }
+
+    if (hasUnsavedChanges) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Unsaved Changes"),
+            tr("You have unsaved changes. Would you like to save them before restarting?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+            );
+
+        if (reply == QMessageBox::Save) {
+            for (int i = 0; i < tabWidget->count(); ++i) {
+                CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+                if (editor && editor->document()->isModified()) {
+                    tabWidget->setCurrentIndex(i);
+                    saveFile();
+                }
+            }
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
     QMap<QString, QVariant> settings = settingsManager->loadSettings();
     settings["language"] = language;
     settingsManager->saveSettings(settings);
