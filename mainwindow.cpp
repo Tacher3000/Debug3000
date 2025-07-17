@@ -10,15 +10,22 @@
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(tr("DebugCrafter"));
+
     tabWidget = new QTabWidget(this);
     tabWidget->setTabsClosable(true);
     setCentralWidget(tabWidget);
+
     settingsManager = new SettingsManager(this);
     fileController = new FileController(this);
+
     createMenus();
     createToolBar();
+
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
-    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) { tabWidget->removeTab(index); });
+    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) {
+        tabWidget->removeTab(index);
+    });
+
     settingsManager->applySettings();
 }
 
@@ -34,6 +41,7 @@ void MainWindow::createMenus() {
     runAction = fileMenu->addAction(tr("Run"));
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
+
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
@@ -122,11 +130,11 @@ void MainWindow::saveFileAs() {
     if (!editor) return;
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File As"), "", tr("Text Files (*.txt);;All Files (*)"));
-    if (fileName.isEmpty()) return;
-
-    if (fileController->saveAsFile(fileName, editor->getText())) {
-        tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
-        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+    if (!fileName.isEmpty()) {
+        if (fileController->saveAsFile(fileName, editor->getText())) {
+            tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
+            tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+        }
     }
 }
 
@@ -156,6 +164,7 @@ void MainWindow::showSettingsDialog() {
     SettingsDialog* dialog = new SettingsDialog(this);
     dialog->setSettings(settingsManager->loadSettings());
     connect(dialog, &SettingsDialog::saveSettingsRequested, settingsManager, &SettingsManager::saveSettings);
+    connect(dialog, &SettingsDialog::saveSettingsRequested, this, &MainWindow::updateEditors);
     connect(dialog, &SettingsDialog::languageChanged, this, &MainWindow::onLanguageChanged);
     connect(dialog, &SettingsDialog::saveSettingsRequested, this, [this](const QMap<QString, QVariant>& settings) {
         bool autoSave = settings["autoSave"].toBool();

@@ -13,7 +13,7 @@
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    SettingsDialog(QWidget* parent = nullptr);
+    explicit SettingsDialog(QWidget* parent = nullptr);
     QMap<QString, QVariant> getSettings() const;
     void setSettings(const QMap<QString, QVariant>& settings);
 signals:

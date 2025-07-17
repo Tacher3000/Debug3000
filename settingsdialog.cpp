@@ -13,7 +13,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     QLabel* themeLabel = new QLabel(tr("Theme:"), this);
     themeComboBox = new QComboBox(this);
-    themeComboBox->addItems({tr("Light"), tr("Dark"), tr("Custom")});
+    themeComboBox->addItem(tr("Light"), "Light");
+    themeComboBox->addItem(tr("Dark"), "Dark");
+    themeComboBox->addItem(tr("Custom"), "Custom");
     mainLayout->addWidget(themeLabel);
     mainLayout->addWidget(themeComboBox);
 
@@ -63,10 +65,13 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     QLabel* languageLabel = new QLabel(tr("Language:"), this);
     languageComboBox = new QComboBox(this);
-    languageComboBox->addItems({tr("English"), tr("Russian")});
+    languageComboBox->addItem(tr("English"), "English");
+    languageComboBox->addItem(tr("Russian"), "Russian");
     mainLayout->addWidget(languageLabel);
     mainLayout->addWidget(languageComboBox);
-    connect(languageComboBox, &QComboBox::currentTextChanged, this, &SettingsDialog::languageChanged);
+    connect(languageComboBox, &QComboBox::currentTextChanged, this, [this](const QString&) {
+        emit languageChanged(languageComboBox->itemData(languageComboBox->currentIndex()).toString());
+    });
 
     showMemoryDumpCheckBox = new QCheckBox(tr("Show Memory Dump"), this);
     mainLayout->addWidget(showMemoryDumpCheckBox);
@@ -112,7 +117,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
 QMap<QString, QVariant> SettingsDialog::getSettings() const {
     QMap<QString, QVariant> settings;
-    settings["theme"] = themeComboBox->currentText();
+    settings["theme"] = themeComboBox->itemData(themeComboBox->currentIndex()).toString();
     settings["backgroundColor"] = backgroundColor;
     settings["textColor"] = textColor;
     settings["highlightColor"] = highlightColor;
@@ -124,7 +129,7 @@ QMap<QString, QVariant> SettingsDialog::getSettings() const {
     settings["lineWrap"] = lineWrapCheckBox->isChecked();
     settings["autoSave"] = autoSaveCheckBox->isChecked();
     settings["syntaxHighlighting"] = syntaxHighlightingCheckBox->isChecked();
-    settings["language"] = languageComboBox->currentText();
+    settings["language"] = languageComboBox->itemData(languageComboBox->currentIndex()).toString();
     settings["showMemoryDump"] = showMemoryDumpCheckBox->isChecked();
     settings["memoryDumpSegment"] = memoryDumpSegmentEdit->text();
     settings["memoryDumpOffset"] = memoryDumpOffsetEdit->text();
@@ -133,19 +138,26 @@ QMap<QString, QVariant> SettingsDialog::getSettings() const {
 }
 
 void SettingsDialog::setSettings(const QMap<QString, QVariant>& settings) {
-    themeComboBox->setCurrentText(settings["theme"].toString());
+    int themeIndex = themeComboBox->findData(settings["theme"].toString());
+    themeComboBox->setCurrentIndex(themeIndex != -1 ? themeIndex : 0);
+
     backgroundColor = settings["backgroundColor"].value<QColor>();
     textColor = settings["textColor"].value<QColor>();
     highlightColor = settings["highlightColor"].value<QColor>();
+
     QFont font = settings["font"].value<QFont>();
     fontComboBox->setCurrentFont(font);
     fontSizeSpinBox->setValue(font.pointSize());
+
     standardLineNumberingCheckBox->setChecked(settings["standardLineNumbering"].toBool());
     addressLineNumberingCheckBox->setChecked(settings["addressLineNumbering"].toBool());
     lineWrapCheckBox->setChecked(settings["lineWrap"].toBool());
     autoSaveCheckBox->setChecked(settings["autoSave"].toBool());
     syntaxHighlightingCheckBox->setChecked(settings["syntaxHighlighting"].toBool());
-    languageComboBox->setCurrentText(settings["language"].toString());
+
+    int languageIndex = languageComboBox->findData(settings["language"].toString());
+    languageComboBox->setCurrentIndex(languageIndex != -1 ? languageIndex : 0);
+
     showMemoryDumpCheckBox->setChecked(settings["showMemoryDump"].toBool());
     memoryDumpSegmentEdit->setText(settings["memoryDumpSegment"].toString());
     memoryDumpOffsetEdit->setText(settings["memoryDumpOffset"].toString());
@@ -153,7 +165,7 @@ void SettingsDialog::setSettings(const QMap<QString, QVariant>& settings) {
 }
 
 void SettingsDialog::resetToDefaults() {
-    themeComboBox->setCurrentText(tr("Light"));
+    themeComboBox->setCurrentIndex(themeComboBox->findData("Light"));
     backgroundColor = Qt::white;
     textColor = Qt::black;
     highlightColor = QColor(Qt::darkGray).lighter(160);
@@ -165,7 +177,7 @@ void SettingsDialog::resetToDefaults() {
     lineWrapCheckBox->setChecked(false);
     autoSaveCheckBox->setChecked(false);
     syntaxHighlightingCheckBox->setChecked(true);
-    languageComboBox->setCurrentText(tr("English"));
+    languageComboBox->setCurrentIndex(languageComboBox->findData("English"));
     showMemoryDumpCheckBox->setChecked(false);
     memoryDumpSegmentEdit->setText("1000");
     memoryDumpOffsetEdit->setText("200");
