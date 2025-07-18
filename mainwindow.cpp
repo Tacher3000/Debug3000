@@ -65,10 +65,15 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 void MainWindow::createMenus() {
     fileMenu = menuBar()->addMenu(tr("File"));
     newAction = fileMenu->addAction(tr("New"));
+    newAction->setShortcut(QKeySequence::New);
     openAction = fileMenu->addAction(tr("Open"));
+    openAction->setShortcut(QKeySequence::Open);
     saveAction = fileMenu->addAction(tr("Save"));
+    saveAction->setShortcut(QKeySequence::Save);
     saveAsAction = fileMenu->addAction(tr("Save As"));
+    saveAsAction->setShortcut(QKeySequence::SaveAs);
     runAction = fileMenu->addAction(tr("Run"));
+    runAction->setShortcut(Qt::Key_F5);
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
@@ -112,6 +117,22 @@ CodeEditor* MainWindow::getCurrentEditor() const {
 }
 
 void MainWindow::newFile() {
+    CodeEditor* currentEditor = getCurrentEditor();
+    if (currentEditor && currentEditor->document()->isModified()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Unsaved Changes"),
+            tr("The current file has unsaved changes. Would you like to save them before creating a new file?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+            );
+
+        if (reply == QMessageBox::Save) {
+            saveFile();
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
     CodeEditor* editor = new CodeEditor();
     tabWidget->addTab(editor, tr("New File"));
     tabWidget->setCurrentWidget(editor);
@@ -124,18 +145,41 @@ void MainWindow::newFile() {
 
 void MainWindow::openFile() {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Text and COM Files (*.txt *.com *.COM);;All Files (*)"));
-    if (!fileName.isEmpty()) {
-        QString content = fileController->openFile(fileName);
-        CodeEditor* editor = new CodeEditor();
-        editor->setText(content);
-        tabWidget->addTab(editor, QFileInfo(fileName).fileName());
-        tabWidget->setCurrentWidget(editor);
-        QMap<QString, QVariant> settings = settingsManager->loadSettings();
-        updateEditors(settings);
-        tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
-        if (settings["autoSave"].toBool()) {
-            connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
+    if (fileName.isEmpty()) return;
+
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        if (tabWidget->tabToolTip(i) == fileName) {
+            tabWidget->setCurrentIndex(i);
+            return;
         }
+    }
+
+    CodeEditor* currentEditor = getCurrentEditor();
+    if (currentEditor && currentEditor->document()->isModified()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Unsaved Changes"),
+            tr("The current file has unsaved changes. Would you like to save them before opening a new file?"),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+            );
+
+        if (reply == QMessageBox::Save) {
+            saveFile();
+        } else if (reply == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
+    QString content = fileController->openFile(fileName);
+    CodeEditor* editor = new CodeEditor();
+    editor->setText(content);
+    tabWidget->addTab(editor, QFileInfo(fileName).fileName());
+    tabWidget->setCurrentWidget(editor);
+    QMap<QString, QVariant> settings = settingsManager->loadSettings();
+    updateEditors(settings);
+    tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+    if (settings["autoSave"].toBool()) {
+        connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
     }
 }
 
@@ -144,7 +188,12 @@ void MainWindow::saveFile() {
     if (!editor) return;
 
     QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
-    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File") || fileName.endsWith(".com", Qt::CaseInsensitive)) {
+    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File")) {
+        saveFileAs();
+        return;
+    }
+
+    if (fileName.endsWith(".com", Qt::CaseInsensitive)) {
         saveFileAs();
         return;
     }

@@ -18,6 +18,7 @@ class CodeEditor : public QPlainTextEdit {
     Q_OBJECT
 protected:
     void resizeEvent(QResizeEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
 private slots:
     void updateLineNumberArea(const QRect& rect, int dy);
     void updateMemoryDumpArea(const QRect& rect, int dy);
@@ -28,7 +29,7 @@ public:
     void setStandardLineNumbering(bool enabled);
     void setAddressLineNumbering(bool enabled);
     void setCurrentLineHighlight(bool enabled);
-    void setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor);
+    void setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor, const QColor& commentColor = Qt::darkGray);
     void setFont(const QFont& font);
     void setLineWrap(bool enabled);
     void setSyntaxHighlighting(bool enabled);
@@ -40,6 +41,13 @@ public:
     int lineNumberAreaWidth();
     int memoryDumpAreaWidth();
     void updateMemoryDump();
+    void toggleComment();
+    void moveLineUp();
+    void moveLineDown();
+    void duplicateLine(bool up);
+    void addCursorUp();
+    void addCursorDown();
+    void deleteLine();
 private:
     static const int MARGIN_LEFT = 5;
     static const int MARGIN_RIGHT = 10;
@@ -62,6 +70,7 @@ private:
     QColor backgroundColor;
     QColor textColor;
     QColor highlightColor;
+    QColor commentColor;
     int memoryDumpLineCount;
     QMap<int, QByteArray> memoryChanges;
 
@@ -69,10 +78,12 @@ private:
     public:
         SyntaxHighlighter(QTextDocument* parent);
         void setEnabled(bool enabled);
+        void setCommentColor(const QColor& color);
     protected:
         void highlightBlock(const QString& text) override;
     private:
         bool enabled;
+        QColor commentColor;
     };
 
     void updateLineNumberAreaWidth();

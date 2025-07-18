@@ -3,18 +3,34 @@
 #include <QTextBlock>
 #include <QPainter>
 #include <QFontMetrics>
+#include <QKeyEvent>
+#include <QApplication>
+#include <QClipboard>
 
 const QString CodeEditor::ADDRESS_FORMAT = "CS:0000";
 
-CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent), enabled(true) {}
+CodeEditor::SyntaxHighlighter::SyntaxHighlighter(QTextDocument* parent) : QSyntaxHighlighter(parent), enabled(true), commentColor(Qt::gray) {}
 
 void CodeEditor::SyntaxHighlighter::setEnabled(bool enabled) {
     this->enabled = enabled;
     rehighlight();
 }
 
+void CodeEditor::SyntaxHighlighter::setCommentColor(const QColor& color) {
+    commentColor = color;
+    rehighlight();
+}
+
 void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     if (!enabled) return;
+
+    QString trimmedText = text.trimmed();
+    if (trimmedText.startsWith(";")) {
+        QTextCharFormat commentFormat;
+        commentFormat.setForeground(commentColor);
+        setFormat(0, text.length(), commentFormat);
+        return;
+    }
 
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
@@ -35,7 +51,7 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
     }
 }
 
-CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), syntaxHighlighting(true), showMemoryDump(false) {
+CodeEditor::CodeEditor(QWidget* parent) : QPlainTextEdit(parent), standardLineNumbering(true), addressLineNumbering(true), currentLineHighlight(true), lineWrap(false), syntaxHighlighting(true), showMemoryDump(false), commentColor(Qt::darkGray) {
     lineNumberArea = new LineNumberArea(this);
     memoryDumpArea = new MemoryDumpArea(this);
     highlighter = new SyntaxHighlighter(document());
@@ -85,15 +101,17 @@ void CodeEditor::setShowMemoryDump(bool enabled, const QString& segment, const Q
     memoryDumpArea->update();
 }
 
-void CodeEditor::setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor) {
+void CodeEditor::setTheme(const QString& theme, const QColor& backgroundColor, const QColor& textColor, const QColor& highlightColor, const QColor& commentColor) {
     this->theme = theme;
     this->backgroundColor = backgroundColor;
     this->textColor = textColor;
     this->highlightColor = highlightColor;
+    this->commentColor = commentColor;
     QPalette palette = this->palette();
     palette.setColor(QPalette::Base, backgroundColor);
     palette.setColor(QPalette::Text, textColor);
     setPalette(palette);
+    static_cast<SyntaxHighlighter*>(highlighter)->setCommentColor(commentColor);
     highlightCurrentLine();
 }
 
@@ -119,6 +137,290 @@ void CodeEditor::setSyntaxHighlighting(bool enabled) {
 
 QString CodeEditor::getText() const { return toPlainText(); }
 void CodeEditor::setText(const QString& text) { setPlainText(text); }
+
+void CodeEditor::keyPressEvent(QKeyEvent* event) {
+    if (event->matches(QKeySequence::Paste)) {
+        QPlainTextEdit::keyPressEvent(event);
+        return;
+    }
+
+    if (event->key() == Qt::Key_X && event->modifiers() == Qt::ControlModifier) {
+        deleteLine();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Slash && event->modifiers() == Qt::ControlModifier) {
+        toggleComment();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Up && event->modifiers() == Qt::AltModifier) {
+        moveLineUp();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Down && event->modifiers() == Qt::AltModifier) {
+        moveLineDown();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Up && event->modifiers() == (Qt::ShiftModifier | Qt::AltModifier)) {
+        duplicateLine(true);
+        return;
+    }
+
+    if (event->key() == Qt::Key_Down && event->modifiers() == (Qt::ShiftModifier | Qt::AltModifier)) {
+        duplicateLine(false);
+        return;
+    }
+
+    if (event->key() == Qt::Key_Up && event->modifiers() == (Qt::ControlModifier | Qt::AltModifier)) {
+        addCursorUp();
+        return;
+    }
+
+    if (event->key() == Qt::Key_Down && event->modifiers() == (Qt::ControlModifier | Qt::AltModifier)) {
+        addCursorDown();
+        return;
+    }
+
+    QPlainTextEdit::keyPressEvent(event);
+}
+
+void CodeEditor::toggleComment() {
+    QTextCursor cursor = textCursor();
+    bool hasSelection = cursor.hasSelection();
+    int start = hasSelection ? cursor.selectionStart() : cursor.block().position();
+    int end = hasSelection ? cursor.selectionEnd() : cursor.block().position() + cursor.block().length() - 1;
+
+    QTextDocument* doc = document();
+    QTextCursor startCursor(doc);
+    startCursor.setPosition(start);
+    QTextBlock startBlock = startCursor.block();
+    QTextCursor endCursor(doc);
+    endCursor.setPosition(end);
+    QTextBlock endBlock = endCursor.block();
+
+    bool allCommented = true;
+    QTextBlock block = startBlock;
+    while (block.isValid() && block.position() <= endBlock.position()) {
+        QString text = block.text().trimmed();
+        if (!text.isEmpty() && !text.startsWith(";")) {
+            allCommented = false;
+            break;
+        }
+        block = block.next();
+    }
+
+    cursor.beginEditBlock();
+    block = startBlock;
+    while (block.isValid() && block.position() <= endBlock.position()) {
+        QString text = block.text();
+        QTextCursor blockCursor(doc);
+        blockCursor.setPosition(block.position());
+        blockCursor.movePosition(QTextCursor::StartOfBlock);
+        if (allCommented) {
+            if (text.trimmed().startsWith(";")) {
+                blockCursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+                blockCursor.removeSelectedText();
+            }
+        } else {
+            if (!text.trimmed().isEmpty()) {
+                blockCursor.insertText(";");
+            }
+        }
+        block = block.next();
+    }
+    cursor.endEditBlock();
+
+    if (!hasSelection) {
+        cursor.setPosition(startBlock.position());
+        setTextCursor(cursor);
+    }
+
+    static_cast<SyntaxHighlighter*>(highlighter)->rehighlight();
+}
+
+void CodeEditor::moveLineUp() {
+    QTextCursor cursor = textCursor();
+    QTextBlock block = cursor.block();
+    if (!block.isValid() || block.previous().position() < 0) return;
+
+    cursor.beginEditBlock();
+    QString currentText = block.text();
+    QString prevText = block.previous().text();
+
+    QTextCursor prevCursor(document());
+    prevCursor.setPosition(block.previous().position());
+    prevCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    prevCursor.removeSelectedText();
+    prevCursor.insertText(currentText);
+
+    QTextCursor currentCursor(document());
+    currentCursor.setPosition(block.position());
+    currentCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    currentCursor.removeSelectedText();
+    currentCursor.insertText(prevText);
+
+    cursor.setPosition(block.previous().position() + cursor.position() - block.position());
+    setTextCursor(cursor);
+    cursor.endEditBlock();
+}
+
+void CodeEditor::moveLineDown() {
+    QTextCursor cursor = textCursor();
+    QTextBlock block = cursor.block();
+    if (!block.isValid() || !block.next().isValid()) return;
+
+    cursor.beginEditBlock();
+    QString currentText = block.text();
+    QString nextText = block.next().text();
+
+    QTextCursor currentCursor(document());
+    currentCursor.setPosition(block.position());
+    currentCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    currentCursor.removeSelectedText();
+    currentCursor.insertText(nextText);
+
+    QTextCursor nextCursor(document());
+    nextCursor.setPosition(block.next().position());
+    nextCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    nextCursor.removeSelectedText();
+    nextCursor.insertText(currentText);
+
+    cursor.setPosition(block.next().position() + cursor.position() - block.position());
+    setTextCursor(cursor);
+    cursor.endEditBlock();
+}
+
+void CodeEditor::duplicateLine(bool up) {
+    QTextCursor cursor = textCursor();
+    QTextBlock block = cursor.block();
+    QString text = block.text();
+
+    cursor.beginEditBlock();
+    QTextCursor newCursor(document());
+    if (up) {
+        newCursor.setPosition(block.position());
+        newCursor.insertText(text + "\n");
+        cursor.setPosition(block.position() + text.length());
+    } else {
+        newCursor.setPosition(block.next().position());
+        newCursor.insertText(text + "\n");
+        cursor.setPosition(block.position() + text.length());
+    }
+    setTextCursor(cursor);
+    cursor.endEditBlock();
+}
+
+void CodeEditor::addCursorUp() {
+    QList<QTextCursor> allCursors;
+    allCursors.append(textCursor());
+    for (const auto& sel : extraSelections()) {
+        allCursors.append(sel.cursor);
+    }
+
+    QList<QTextEdit::ExtraSelection> newSelections = extraSelections();
+
+    for (const QTextCursor &cursor : allCursors) {
+        QTextBlock block = cursor.block();
+        if (!block.previous().isValid()) continue;
+
+        QTextBlock prevBlock = block.previous();
+        int relativePos = cursor.position() - block.position();
+        int newPos = prevBlock.position() + qMin(relativePos, prevBlock.length() - 1);
+
+        QTextCursor newCursor(document());
+        newCursor.setPosition(newPos);
+
+        bool exists = false;
+        for (const auto& sel : newSelections) {
+            if (sel.cursor.position() == newPos) {
+                exists = true;
+                break;
+            }
+        }
+
+        if (!exists) {
+            QTextEdit::ExtraSelection extra;
+            extra.cursor = newCursor;
+            extra.format.setBackground(highlightColor);
+            newSelections.append(extra);
+        }
+    }
+
+    setExtraSelections(newSelections);
+}
+
+void CodeEditor::addCursorDown() {
+    QList<QTextCursor> allCursors;
+    allCursors.append(textCursor());
+    for (const auto& sel : extraSelections()) {
+        allCursors.append(sel.cursor);
+    }
+
+    QList<QTextEdit::ExtraSelection> newSelections = extraSelections();
+
+    for (const QTextCursor &cursor : allCursors) {
+        QTextBlock block = cursor.block();
+        if (!block.next().isValid()) continue;
+
+        QTextBlock nextBlock = block.next();
+        int relativePos = cursor.position() - block.position();
+        int newPos = nextBlock.position() + qMin(relativePos, nextBlock.length() - 1);
+
+        QTextCursor newCursor(document());
+        newCursor.setPosition(newPos);
+
+        bool exists = false;
+        for (const auto& sel : newSelections) {
+            if (sel.cursor.position() == newPos) {
+                exists = true;
+                break;
+            }
+        }
+
+        if (!exists) {
+            QTextEdit::ExtraSelection extra;
+            extra.cursor = newCursor;
+            extra.format.setBackground(highlightColor);
+            newSelections.append(extra);
+        }
+    }
+
+    setExtraSelections(newSelections);
+}
+
+void CodeEditor::deleteLine() {
+    QTextCursor cursor = textCursor();
+    bool hasSelection = cursor.hasSelection();
+
+    if (hasSelection) {
+        QString selectedText = cursor.selectedText();
+        QApplication::clipboard()->setText(selectedText);
+        cursor.removeSelectedText();
+    } else {
+        cursor.movePosition(QTextCursor::StartOfBlock);
+
+        if (cursor.block().next().isValid()) {
+            cursor.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
+            cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::KeepAnchor);
+        } else {
+            cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+        }
+
+        QString text = cursor.selectedText();
+        QApplication::clipboard()->setText(text);
+        cursor.removeSelectedText();
+
+        if (!cursor.block().next().isValid() && cursor.block().previous().isValid()) {
+            cursor.movePosition(QTextCursor::PreviousBlock);
+            cursor.movePosition(QTextCursor::EndOfBlock);
+        }
+    }
+
+    setTextCursor(cursor);
+}
 
 int CodeEditor::calculateInstructionLength(const QString& text) {
     QString trimmed = text.trimmed().toUpper();
