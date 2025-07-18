@@ -34,7 +34,7 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
 
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
-    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret)\\b", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret|xor|and|or|not)\\b", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator it = instructionRegex.globalMatch(text);
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
@@ -449,6 +449,7 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
     bool isReg1 = isRegister(arg1);
     bool isNum2 = isNumber(arg2);
     bool isReg2 = isRegister(arg2);
+    bool isMem1 = isMemory(arg1);
     bool isMem2 = isMemory(arg2);
 
     if (instruction == "MOV") {
@@ -457,13 +458,18 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
                     arg1 == "CL" || arg1 == "CH" || arg1 == "DL" || arg1 == "DH") ? 2 : 3;
         } else if (isReg1 && isReg2) {
             return 2;
-        } else if (isReg1 && isMem2 || isMem2 && isReg1) {
+        } else if (isReg1 && isMem2 || isMem1 && isReg2) {
             return 2;
         }
-    } else if (instruction == "ADD" || instruction == "SUB" || instruction == "CMP") {
+    } else if (instruction == "ADD" || instruction == "SUB" || instruction == "CMP" ||
+               instruction == "XOR" || instruction == "AND" || instruction == "OR") {
         if (isReg1 && isNum2) {
             return (arg2.toInt(nullptr, 16) <= 0xFF) ? 3 : 4;
-        } else if (isReg1 && isReg2 || isReg1 && isMem2) {
+        } else if (isReg1 && isReg2 || isReg1 && isMem2 || isMem1 && isReg2) {
+            return 2;
+        }
+    } else if (instruction == "NOT") {
+        if (isReg1 || isMem1) {
             return 2;
         }
     } else if (instruction == "JMP" || instruction == "JE" || instruction == "JNE" ||
