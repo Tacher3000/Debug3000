@@ -34,7 +34,7 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
 
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
-    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret|xor|and|or|not)\\b", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret|xor|and|or|not|loop)\\b", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator it = instructionRegex.globalMatch(text);
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
@@ -481,6 +481,8 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
     } else if (instruction == "INC" || instruction == "DEC" || instruction == "PUSH" || instruction == "POP") {
         return 1;
     } else if (instruction == "INT") {
+        return 2;
+    } else if (instruction == "CALL" || instruction == "LOOP") {
         return 2;
     }
 

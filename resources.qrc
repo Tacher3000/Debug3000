@@ -7,5 +7,6 @@
         <file>translations/DebugCrafter_en.ts</file>
         <file>translations/DebugCrafter_ru.qm</file>
         <file>translations/DebugCrafter_ru.ts</file>
+        <file>help/help.html</file>
     </qresource>
 </RCC>

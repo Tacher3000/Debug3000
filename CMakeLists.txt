@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
-# Настройка переводов
+find_package(Qt6 REQUIRED COMPONENTS WebEngineWidgets)
 find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
 
 set(TS_FILES
@@ -76,6 +76,7 @@ else()
 endif()
 
 target_link_libraries(DebugCrafter PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
+target_link_libraries(DebugCrafter PRIVATE Qt6::WebEngineWidgets)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

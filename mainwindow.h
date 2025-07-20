@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QVariant>
 #include <QTranslator>
+#include <QWebEngineView>
 #include "codeeditor.h"
 #include "settingsmanager.h"
 #include "settingsdialog.h"
@@ -25,6 +26,7 @@ private slots:
     void saveFileAs();
     void runCode();
     void showSettingsDialog();
+    void showHelp();
     void updateEditors(const QMap<QString, QVariant>& settings);
     void onLanguageChanged(const QString& language);
     void handleTextChanged();
@@ -39,9 +41,13 @@ private:
     QAction* saveAsAction;
     QAction* runAction;
     QAction* settingsAction;
+    QAction* helpAction;
     QMenu* fileMenu;
     QMenu* settingsMenu;
+    QMenu* helpMenu;
     QToolBar* toolBar;
+    QWebEngineView* helpView;
+    QMainWindow* helpWindow;
     void createMenus();
     void createToolBar();
     void updateInterfaceTranslations();

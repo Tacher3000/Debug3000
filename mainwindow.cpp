@@ -9,6 +9,10 @@
 #include <QProcess>
 #include <QMessageBox>
 #include <QCloseEvent>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QWebEngineView>
+#include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(tr("DebugCrafter"));
@@ -17,6 +21,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setCentralWidget(tabWidget);
     settingsManager = new SettingsManager(this);
     fileController = new FileController(this);
+    helpView = nullptr;
+    helpWindow = nullptr;
     createMenus();
     createToolBar();
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
@@ -25,6 +31,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
+    delete helpWindow; // Удаляем окно справки при закрытии
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
@@ -76,12 +83,15 @@ void MainWindow::createMenus() {
     runAction->setShortcut(Qt::Key_F5);
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
+    helpMenu = menuBar()->addMenu(tr("Help"));
+    helpAction = helpMenu->addAction(tr("About DebugCrafter"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
     connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveFileAs);
     connect(runAction, &QAction::triggered, this, &MainWindow::runCode);
     connect(settingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
+    connect(helpAction, &QAction::triggered, this, &MainWindow::showHelp);
 }
 
 void MainWindow::createToolBar() {
@@ -92,6 +102,7 @@ void MainWindow::createToolBar() {
     toolBar->addAction(saveAsAction);
     toolBar->addAction(runAction);
     toolBar->addAction(settingsAction);
+    toolBar->addAction(helpAction);
 }
 
 void MainWindow::updateInterfaceTranslations() {
@@ -104,6 +115,8 @@ void MainWindow::updateInterfaceTranslations() {
     runAction->setText(tr("Run"));
     settingsMenu->setTitle(tr("Settings"));
     settingsAction->setText(tr("Preferences"));
+    helpMenu->setTitle(tr("Help"));
+    helpAction->setText(tr("About DebugCrafter"));
     toolBar->setWindowTitle(tr("Tools"));
     for (int i = 0; i < tabWidget->count(); ++i) {
         if (tabWidget->tabText(i) == "New File" || tabWidget->tabText(i) == tr("New File")) {
@@ -260,6 +273,32 @@ void MainWindow::showSettingsDialog() {
     });
     dialog->exec();
     delete dialog;
+}
+
+void MainWindow::showHelp() {
+    if (!helpWindow) {
+        helpWindow = new QMainWindow(this);
+        helpWindow->setWindowTitle(tr("Справка по DebugCrafter"));
+        helpWindow->setMinimumSize(800, 600);
+
+        helpView = new QWebEngineView(helpWindow);
+        QVBoxLayout* layout = new QVBoxLayout;
+        layout->addWidget(helpView);
+        QWidget* centralWidget = new QWidget;
+        centralWidget->setLayout(layout);
+        helpWindow->setCentralWidget(centralWidget);
+
+        helpView->load(QUrl("qrc:/help/help.html"));
+        connect(helpView, &QWebEngineView::loadFinished, this, [this](bool ok) {
+            if (!ok) {
+                qDebug() << "Ошибка загрузки справки";
+                QMessageBox::warning(this, tr("Ошибка"), tr("Не удалось загрузить файл справки."));
+            }
+        });
+    }
+    helpWindow->show();
+    helpWindow->raise();
+    helpWindow->activateWindow();
 }
 
 void MainWindow::updateEditors(const QMap<QString, QVariant>& settings) {

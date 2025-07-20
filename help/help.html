@@ -1,0 +1,395 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Справка по Debug3000</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+        }
+        .sidebar h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar li {
+            margin: 10px 0;
+        }
+        .sidebar a {
+            text-decoration: none;
+            color: #333;
+            font-size: 1.1em;
+        }
+        .sidebar a:hover {
+            color: #007bff;
+        }
+        .sidebar .sub-menu {
+            margin-left: 20px;
+            display: none;
+        }
+        .sidebar .sub-menu.active {
+            display: block;
+        }
+        .content {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .content h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        .content h2 {
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+        .content pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .content code {
+            font-family: Consolas, monospace;
+        }
+        .content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .content th, .content td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .content th {
+            background-color: #f2f2f2;
+        }
+    </style>
+    <script>
+        function showSection(sectionId) {
+            document.querySelectorAll('.content section').forEach(section => {
+                section.style.display = 'none';
+            });
+            document.getElementById(sectionId).style.display = 'block';
+        }
+        function toggleSubMenu(id) {
+            const subMenu = document.getElementById(id);
+            subMenu.classList.toggle('active');
+        }
+    </script>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Справка</h2>
+        <ul>
+            <li><a href="#" onclick="showSection('about')">О приложении</a></li>
+            <li>
+                <a href="#" onclick="toggleSubMenu('commands-menu')">Команды</a>
+                <ul id="commands-menu" class="sub-menu">
+                    <li><a href="#" onclick="showSection('cmd-mov')">MOV</a></li>
+                    <li><a href="#" onclick="showSection('cmd-add')">ADD</a></li>
+                    <li><a href="#" onclick="showSection('cmd-sub')">SUB</a></li>
+                    <li><a href="#" onclick="showSection('cmd-cmp')">CMP</a></li>
+                    <li><a href="#" onclick="showSection('cmd-jmp')">JMP</a></li>
+                    <li><a href="#" onclick="showSection('cmd-int')">INT</a></li>
+                    <li><a href="#" onclick="showSection('cmd-dec')">DEC</a></li>
+                    <li><a href="#" onclick="showSection('cmd-mul')">MUL</a></li>
+                    <li><a href="#" onclick="showSection('cmd-imul')">IMUL</a></li>
+                    <li><a href="#" onclick="showSection('cmd-div')">DIV</a></li>
+                    <li><a href="#" onclick="showSection('cmd-idiv')">IDIV</a></li>
+                    <li><a href="#" onclick="showSection('cmd-jxx')">Jxx</a></li>
+                    <li><a href="#" onclick="showSection('cmd-loop')">LOOP</a></li>
+                    <li><a href="#" onclick="showSection('cmd-call')">CALL</a></li>
+                    <li><a href="#" onclick="showSection('cmd-push')">PUSH</a></li>
+                    <li><a href="#" onclick="showSection('cmd-pop')">POP</a></li>
+
+                </ul>
+            </li>
+            <li><a href="#" onclick="showSection('hotkeys')">Горячие клавиши</a></li>
+            <li><a href="#" onclick="showSection('tips')">Советы по использованию</a></li>
+        </ul>
+    </div>
+    <div class="content">
+        <section id="about">
+            <h1>О приложении Debug3000</h1>
+            <p>Debug3000 — это редактор кода для команд ассемблера. Приложение поддерживает подсветку синтаксиса, нумерацию строк, адресов памяти, отображение дампа памяти и выполнение скриптов через DOSBox-X.</p>
+            <h2>Основные возможности</h2>
+            <ul>
+                <li>Открытие COM-файлов.</li>
+                <li>Подсветка синтаксиса для ассемблерных инструкций.</li>
+                <li>Нумерация строк и адресов инструкций.</li>
+                <li>Отображение дампа памяти.</li>
+                <li>Поддержка горячих клавиш для быстрого редактирования.</li>
+                <li>Автосохранение и выполнение скриптов.</li>
+            </ul>
+        </section>
+        <section id="cmd-mov" style="display: none;">
+            <h1>Команда MOV</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>MOV</code> копирует данные из источника в приёмник. Формат: <code>MOV приёмник, источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>MOV AX, 1234h  ; Копирует число 1234h в регистр AX
+MOV [BX], AL   ; Копирует содержимое регистра AL в память по адресу BX
+MOV CX, DX     ; Копирует содержимое регистра DX в регистр CX</code></pre>
+            <h2>Теория</h2>
+            <p>Команда <code>MOV</code> не влияет на флаги процессора. Источник и приёмник могут быть регистрами, ячейками памяти или непосредственными значениями, но оба не могут быть ячейками памяти одновременно.</p>
+        </section>
+        <section id="cmd-add" style="display: none;">
+            <h1>Команда ADD</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>ADD</code> складывает источник с приёмником и сохраняет результат в приёмнике. Формат: <code>ADD приёмник, источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>ADD AX, 10h    ; Прибавляет 10h к регистру AX
+ADD [BX], 5     ; Прибавляет 5 к содержимому памяти по адресу BX
+ADD CX, DX      ; Прибавляет содержимое DX к CX</code></pre>
+        </section>
+        <section id="cmd-sub" style="display: none;">
+            <h1>Команда SUB</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>SUB</code> вычитает источник из приёмника и сохраняет результат в приёмнике. Формат: <code>SUB приёмник, источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>SUB AX, 10h    ; Вычитает 10h из регистра AX
+SUB [BX], 5     ; Вычитает 5 из содержимого памяти по адресу BX
+SUB CX, DX      ; Вычитает содержимое DX из CX</code></pre>
+        </section>
+        <section id="cmd-cmp" style="display: none;">
+            <h1>Команда CMP</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>CMP</code> сравнивает приёмник с источником, выполняя вычитание без сохранения результата. Формат: <code>CMP операнд_1, операнд_2</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>CMP AX, 10h    ; Сравнивает AX с 10h
+CMP [BX], AL    ; Сравнивает содержимое памяти по адресу BX с AL
+CMP CX, DX      ; Сравнивает CX с DX</code></pre>
+        </section>
+        <section id="cmd-jmp" style="display: none;">
+            <h1>Команда JMP</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>JMP</code> выполняет безусловный переход на указанный адрес. Формат: <code>JMP адрес</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>JMP 100h       ; Переходит на адрес CS:100h
+JMP label       ; Переходит на метку label</code></pre>
+        </section>
+        <section id="cmd-int" style="display: none;">
+            <h1>Команда INT</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>INT</code> вызывает программное прерывание. Формат: <code>INT номер</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>INT 20h        ; Вызывает прерывание 20h (завершение программы)
+INT 10h        ; Вызывает прерывание 10h (видео)</code></pre>
+            <h2>Теория</h2>
+            <p>Используется для вызова системных функций DOS или BIOS. Номер прерывания указывает, какая функция будет выполнена.</p>
+        </section>
+        <section id="cmd-dec" style="display: none;">
+            <h1>Команда DEC</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>DEC</code> уменьшает значение приёмника на 1. Формат: <code>DEC приёмник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>DEC AX         ; Уменьшает AX на 1
+DEC [BX]       ; Уменьшает содержимое памяти по адресу BX на 1</code></pre>
+        </section>
+        <section id="cmd-mul" style="display: none;">
+            <h1>Команда MUL</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>MUL</code> выполняет умножение без знака. Формат: <code>MUL источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>MUL BX         ; Умножает AX на BX, результат в DX:AX
+MUL BYTE [SI]  ; Умножает AL на содержимое памяти по SI</code></pre>
+        </section>
+        <section id="cmd-imul" style="display: none;">
+            <h1>Команда IMUL</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>IMUL</code> выполняет умножение со знаком. Формат: <code>IMUL источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>IMUL BX        ; Умножает AX на BX со знаком, результат в DX:AX
+IMUL BYTE [SI] ; Умножает AL на содержимое памяти по SI со знаком</code></pre>
+        </section>
+        <section id="cmd-div" style="display: none;">
+            <h1>Команда DIV</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>DIV</code> выполняет деление без знака. Формат: <code>DIV источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>DIV BX         ; Делит DX:AX на BX, частное в AX, остаток в DX
+DIV BYTE [SI]  ; Делит AX на содержимое памяти по SI</code></pre>
+        </section>
+        <section id="cmd-idiv" style="display: none;">
+            <h1>Команда IDIV</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>IDIV</code> выполняет деление со знаком. Формат: <code>IDIV источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>IDIV BX        ; Делит DX:AX на BX со знаком, частное в AX, остаток в DX
+IDIV BYTE [SI] ; Делит AX на содержимое памяти по SI со знаком</code></pre>
+        </section>
+        <section id="cmd-jxx" style="display: none;">
+            <h1>Команда Jxx (Условные переходы)</h1>
+            <h2>Описание</h2>
+            <p>Команды условных переходов основаны на флагах процессора. Формат: <code>Jxx адрес</code>.</p>
+    <table>
+        <tr>
+            <th>Команда</th>
+            <th>Содержательное условие<br>для перехода после команды<br>CMP op1, op2</th>
+            <th>Состояние флагов<br>для перехода</th>
+        </tr>
+        <tr>
+            <td colspan="3">для любых чисел</td>
+        </tr>
+        <tr>
+            <td>JE</td>
+            <td>op1=op2</td>
+            <td>ZF=1</td>
+        </tr>
+        <tr>
+            <td>JNE</td>
+            <td>op1≠op2</td>
+            <td>ZF=0</td>
+        </tr>
+        <tr>
+            <td colspan="3">для чисел со знаком</td>
+        </tr>
+        <tr>
+            <td>JL (или JNGE)</td>
+            <td>op1&lt;op2</td>
+            <td>SF≠OF</td>
+        </tr>
+        <tr>
+            <td>JLE (или JNG)</td>
+            <td>op1≤op2</td>
+            <td>SF≠OF или ZF=1</td>
+        </tr>
+        <tr>
+            <td>JG (или JNLE)</td>
+            <td>op1>op2</td>
+            <td>SF=OF или ZF=0</td>
+        </tr>
+        <tr>
+            <td>JGE (или JNL)</td>
+            <td>op1≥op2</td>
+            <td>SF=OF</td>
+        </tr>
+        <tr>
+            <td colspan="3">для чисел без знака</td>
+        </tr>
+        <tr>
+            <td>JB (или JNAE)</td>
+            <td>op1&lt;op2</td>
+            <td>CF=1</td>
+        </tr>
+        <tr>
+            <td>JBE (или JNA)</td>
+            <td>op1≤op2</td>
+            <td>CF=1 или ZF=1</td>
+        </tr>
+        <tr>
+            <td>JA (или JNBE)</td>
+            <td>op1>op2</td>
+            <td>CF=0 или ZF=0</td>
+        </tr>
+        <tr>
+            <td>JAE (или JNB)</td>
+            <td>op1≥op2</td>
+            <td>CF=0</td>
+        </tr>
+    </table>
+            <h2>Примеры</h2>
+            <pre><code>JE label       ; Переход, если равно
+JA label       ; Переход, если выше</code></pre>
+        </section>
+        <section id="cmd-loop" style="display: none;">
+            <h1>Команда LOOP</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>LOOP</code> уменьшает CX и переходит на адрес, если CX ≠ 0. Формат: <code>LOOP адрес</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>LOOP label     ; Уменьшает CX и переходит, если CX ≠ 0</code></pre>
+        </section>
+        <section id="cmd-call" style="display: none;">
+            <h1>Команда CALL</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>CALL</code> вызывает подпрограмму. Формат: <code>CALL адрес</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>CALL label     ; Вызов подпрограммы по метке
+CALL 100h      ; Вызов подпрограммы по адресу</code></pre>
+        </section>
+        <section id="cmd-push" style="display: none;">
+            <h1>Команда PUSH</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>PUSH</code> помещает значение в стек. Формат: <code>PUSH источник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>PUSH AX        ; Помещает AX в стек
+PUSH [BX]      ; Помещает содержимое памяти по BX в стек</code></pre>
+        </section>
+        <section id="cmd-pop" style="display: none;">
+            <h1>Команда POP</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>POP</code> извлекает значение из стека. Формат: <code>POP приёмник</code>.</p>
+            <h2>Примеры</h2>
+            <pre><code>POP AX         ; Извлекает значение из стека в AX
+POP [BX]       ; Извлекает значение в память по адресу BX</code></pre>
+        </section>
+        <section id="hotkeys">
+            <h1>Горячие клавиши</h1>
+            <p>Debug3000 поддерживает следующие горячие клавиши для упрощения работы:</p>
+            <table>
+                <tr><th>Комбинация</th><th>Действие</th></tr>
+                <tr><td>Ctrl+N</td><td>Создать новый файл</td></tr>
+                <tr><td>Ctrl+O</td><td>Открыть файл</td></tr>
+                <tr><td>Ctrl+S</td><td>Сохранить файл</td></tr>
+                <tr><td>Ctrl+Shift+S</td><td>Сохранить как</td></tr>
+                <tr><td>F5</td><td>Запустить код</td></tr>
+                <tr><td>Ctrl+/</td><td>Закомментировать/раскомментировать строку</td></tr>
+                <tr><td>Alt+Up</td><td>Переместить строку вверх</td></tr>
+                <tr><td>Alt+Down</td><td>Переместить строку вниз</td></tr>
+                <tr><td>Shift+Alt+Up</td><td>Дублировать строку вверх</td></tr>
+                <tr><td>Shift+Alt+Down</td><td>Дублировать строку вниз</td></tr>
+                <tr><td>Ctrl+X</td><td>Удалить строку (с копированием в буфер)</td></tr>
+            </table>
+        </section>
+    </div>
+</body>
+</html>
