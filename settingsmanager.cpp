@@ -3,7 +3,7 @@
 #include <QColor>
 
 const QString SettingsManager::ORGANIZATION_NAME = "Tacher3000";
-const QString SettingsManager::APPLICATION_NAME = "CodeEditor";
+const QString SettingsManager::APPLICATION_NAME = "Debug3000";
 
 SettingsManager::SettingsManager(QObject* parent) : QObject(parent) {
     settings = new QSettings(ORGANIZATION_NAME, APPLICATION_NAME, this);
@@ -29,6 +29,7 @@ QMap<QString, QVariant> SettingsManager::loadSettings() {
     result["memoryDumpSegment"] = settings->value("memoryDumpSegment", "1000").toString();
     result["memoryDumpOffset"] = settings->value("memoryDumpOffset", "200").toString();
     result["memoryDumpLineCount"] = settings->value("memoryDumpLineCount", 8).toInt();
+    result["showOutputConsole"] = settings->value("showOutputConsole", false).toBool();
     return result;
 }
 
@@ -61,5 +62,6 @@ void SettingsManager::resetToDefaults() {
     defaultSettings["memoryDumpSegment"] = "1000";
     defaultSettings["memoryDumpOffset"] = "200";
     defaultSettings["memoryDumpLineCount"] = 8;
+    defaultSettings["showOutputConsole"] = false;
     saveSettings(defaultSettings);
 }

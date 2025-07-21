@@ -5,7 +5,7 @@
     <name>MainWindow</name>
     <message>
         <location filename="../mainwindow.cpp" line="11"/>
-        <source>DebugCrafter</source>
+        <source>Debug3000</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

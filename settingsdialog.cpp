@@ -97,6 +97,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     mainLayout->addWidget(memoryDumpLineCountLabel);
     mainLayout->addWidget(memoryDumpLineCountSpinBox);
 
+    showOutputConsoleCheckBox = new QCheckBox(tr("Show Output Console"), this);
+    mainLayout->addWidget(showOutputConsoleCheckBox);
+
     resetButton = new QPushButton(tr("Reset to Defaults"), this);
     mainLayout->addWidget(resetButton);
     connect(resetButton, &QPushButton::clicked, this, &SettingsDialog::resetToDefaults);
@@ -134,6 +137,7 @@ QMap<QString, QVariant> SettingsDialog::getSettings() const {
     settings["memoryDumpSegment"] = memoryDumpSegmentEdit->text();
     settings["memoryDumpOffset"] = memoryDumpOffsetEdit->text();
     settings["memoryDumpLineCount"] = memoryDumpLineCountSpinBox->value();
+    settings["showOutputConsole"] = showOutputConsoleCheckBox->isChecked();
     return settings;
 }
 
@@ -162,6 +166,7 @@ void SettingsDialog::setSettings(const QMap<QString, QVariant>& settings) {
     memoryDumpSegmentEdit->setText(settings["memoryDumpSegment"].toString());
     memoryDumpOffsetEdit->setText(settings["memoryDumpOffset"].toString());
     memoryDumpLineCountSpinBox->setValue(settings["memoryDumpLineCount"].toInt());
+    showOutputConsoleCheckBox->setChecked(settings["showOutputConsole"].toBool());
 }
 
 void SettingsDialog::resetToDefaults() {
@@ -182,6 +187,7 @@ void SettingsDialog::resetToDefaults() {
     memoryDumpSegmentEdit->setText("1000");
     memoryDumpOffsetEdit->setText("200");
     memoryDumpLineCountSpinBox->setValue(8);
+    showOutputConsoleCheckBox->setChecked(false);
 }
 
 void SettingsDialog::selectBackgroundColor() {

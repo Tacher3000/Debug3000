@@ -14,8 +14,8 @@
 #include <QWebEngineView>
 #include <QVBoxLayout>
 
-MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle(tr("DebugCrafter"));
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), isLanguageChangeClosing(false) {
+    setWindowTitle(tr("Debug3000"));
     tabWidget = new QTabWidget(this);
     tabWidget->setTabsClosable(true);
     setCentralWidget(tabWidget);
@@ -26,46 +26,36 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     createMenus();
     createToolBar();
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
-    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) { tabWidget->removeTab(index); });
+    connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) {
+        if (promptSaveChanges(index)) {
+            editorTabs.remove(index);
+            tabWidget->removeTab(index);
+            QMap<int, EditorTab> updatedTabs;
+            for (int i = 0, newIndex = 0; i < tabWidget->count(); ++i, ++newIndex) {
+                updatedTabs[newIndex] = editorTabs[i];
+            }
+            editorTabs = updatedTabs;
+        }
+    });
     settingsManager->applySettings();
 }
 
 MainWindow::~MainWindow() {
-    delete helpWindow; // Удаляем окно справки при закрытии
+    delete helpWindow;
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-    bool hasUnsavedChanges = false;
-    for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor && editor->document()->isModified()) {
-            hasUnsavedChanges = true;
-            break;
-        }
+    if (isLanguageChangeClosing) {
+        event->accept();
+        return;
     }
 
-    if (hasUnsavedChanges) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Unsaved Changes"),
-            tr("You have unsaved changes. Would you like to save them before exiting?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
-            );
-
-        if (reply == QMessageBox::Save) {
-            for (int i = 0; i < tabWidget->count(); ++i) {
-                CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-                if (editor && editor->document()->isModified()) {
-                    tabWidget->setCurrentIndex(i);
-                    saveFile();
-                }
-            }
-        } else if (reply == QMessageBox::Cancel) {
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        if (!promptSaveChanges(i)) {
             event->ignore();
             return;
         }
     }
-
     event->accept();
 }
 
@@ -84,7 +74,7 @@ void MainWindow::createMenus() {
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
     helpMenu = menuBar()->addMenu(tr("Help"));
-    helpAction = helpMenu->addAction(tr("About DebugCrafter"));
+    helpAction = helpMenu->addAction(tr("About Debug3000"));
     connect(newAction, &QAction::triggered, this, &MainWindow::newFile);
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
@@ -106,7 +96,7 @@ void MainWindow::createToolBar() {
 }
 
 void MainWindow::updateInterfaceTranslations() {
-    setWindowTitle(tr("DebugCrafter"));
+    setWindowTitle(tr("Debug3000"));
     fileMenu->setTitle(tr("File"));
     newAction->setText(tr("New"));
     openAction->setText(tr("Open"));
@@ -116,7 +106,7 @@ void MainWindow::updateInterfaceTranslations() {
     settingsMenu->setTitle(tr("Settings"));
     settingsAction->setText(tr("Preferences"));
     helpMenu->setTitle(tr("Help"));
-    helpAction->setText(tr("About DebugCrafter"));
+    helpAction->setText(tr("About Debug3000"));
     toolBar->setWindowTitle(tr("Tools"));
     for (int i = 0; i < tabWidget->count(); ++i) {
         if (tabWidget->tabText(i) == "New File" || tabWidget->tabText(i) == tr("New File")) {
@@ -126,31 +116,36 @@ void MainWindow::updateInterfaceTranslations() {
 }
 
 CodeEditor* MainWindow::getCurrentEditor() const {
-    return qobject_cast<CodeEditor*>(tabWidget->currentWidget());
+    int index = tabWidget->currentIndex();
+    if (editorTabs.contains(index)) {
+        return editorTabs[index].editor;
+    }
+    return nullptr;
 }
 
 void MainWindow::newFile() {
+    QMap<QString, QVariant> settings = settingsManager->loadSettings();
     CodeEditor* currentEditor = getCurrentEditor();
     if (currentEditor && currentEditor->document()->isModified()) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Unsaved Changes"),
-            tr("The current file has unsaved changes. Would you like to save them before creating a new file?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
-            );
-
-        if (reply == QMessageBox::Save) {
-            saveFile();
-        } else if (reply == QMessageBox::Cancel) {
+        if (!promptSaveChanges(tabWidget->currentIndex())) {
             return;
         }
     }
 
     CodeEditor* editor = new CodeEditor();
-    tabWidget->addTab(editor, tr("New File"));
-    tabWidget->setCurrentWidget(editor);
-    QMap<QString, QVariant> settings = settingsManager->loadSettings();
-    updateEditors(settings);
+    QSplitter* splitter = new QSplitter(Qt::Vertical);
+    QTextEdit* outputConsole = new QTextEdit();
+    outputConsole->setReadOnly(true);
+    outputConsole->setMinimumHeight(100);
+    splitter->addWidget(editor);
+    splitter->addWidget(outputConsole);
+    splitter->setSizes({400, 100});
+    outputConsole->setVisible(settings["showOutputConsole"].toBool());
+    tabWidget->addTab(splitter, tr("New File"));
+    tabWidget->setCurrentWidget(splitter);
+    EditorTab tab = {editor, splitter, outputConsole, ""};
+    editorTabs[tabWidget->currentIndex()] = tab;
+    updateTab(tabWidget->currentIndex(), settings);
     if (settings["autoSave"].toBool()) {
         connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
     }
@@ -161,7 +156,7 @@ void MainWindow::openFile() {
     if (fileName.isEmpty()) return;
 
     for (int i = 0; i < tabWidget->count(); ++i) {
-        if (tabWidget->tabToolTip(i) == fileName) {
+        if (editorTabs[i].filePath == fileName) {
             tabWidget->setCurrentIndex(i);
             return;
         }
@@ -169,16 +164,7 @@ void MainWindow::openFile() {
 
     CodeEditor* currentEditor = getCurrentEditor();
     if (currentEditor && currentEditor->document()->isModified()) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Unsaved Changes"),
-            tr("The current file has unsaved changes. Would you like to save them before opening a new file?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
-            );
-
-        if (reply == QMessageBox::Save) {
-            saveFile();
-        } else if (reply == QMessageBox::Cancel) {
+        if (!promptSaveChanges(tabWidget->currentIndex())) {
             return;
         }
     }
@@ -186,11 +172,20 @@ void MainWindow::openFile() {
     QString content = fileController->openFile(fileName);
     CodeEditor* editor = new CodeEditor();
     editor->setText(content);
-    tabWidget->addTab(editor, QFileInfo(fileName).fileName());
-    tabWidget->setCurrentWidget(editor);
+    QSplitter* splitter = new QSplitter(Qt::Vertical);
+    QTextEdit* outputConsole = new QTextEdit();
+    outputConsole->setReadOnly(true);
+    outputConsole->setMinimumHeight(100);
+    splitter->addWidget(editor);
+    splitter->addWidget(outputConsole);
+    splitter->setSizes({400, 100});
     QMap<QString, QVariant> settings = settingsManager->loadSettings();
-    updateEditors(settings);
-    tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+    outputConsole->setVisible(settings["showOutputConsole"].toBool());
+    tabWidget->addTab(splitter, QFileInfo(fileName).fileName());
+    tabWidget->setCurrentWidget(splitter);
+    EditorTab tab = {editor, splitter, outputConsole, fileName};
+    editorTabs[tabWidget->currentIndex()] = tab;
+    updateTab(tabWidget->currentIndex(), settings);
     if (settings["autoSave"].toBool()) {
         connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
     }
@@ -200,8 +195,9 @@ void MainWindow::saveFile() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
-    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
-    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File")) {
+    int index = tabWidget->currentIndex();
+    QString fileName = editorTabs[index].filePath;
+    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
         saveFileAs();
         return;
     }
@@ -212,8 +208,9 @@ void MainWindow::saveFile() {
     }
 
     if (fileController->saveFile(fileName, editor->getText())) {
-        tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
+        tabWidget->setTabText(index, QFileInfo(fileName).fileName());
         editor->document()->setModified(false);
+        editorTabs[index].filePath = fileName;
     }
 }
 
@@ -224,8 +221,9 @@ void MainWindow::saveFileAs() {
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File As"), "", tr("Text Files (*.txt);;All Files (*)"));
     if (!fileName.isEmpty()) {
         if (fileController->saveAsFile(fileName, editor->getText())) {
-            tabWidget->setTabText(tabWidget->currentIndex(), QFileInfo(fileName).fileName());
-            tabWidget->setTabToolTip(tabWidget->currentIndex(), fileName);
+            int index = tabWidget->currentIndex();
+            tabWidget->setTabText(index, QFileInfo(fileName).fileName());
+            editorTabs[index].filePath = fileName;
             editor->document()->setModified(false);
         }
     }
@@ -235,21 +233,25 @@ void MainWindow::runCode() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
-    QString fileName = tabWidget->tabToolTip(tabWidget->currentIndex());
+    int index = tabWidget->currentIndex();
+    QString fileName = editorTabs[index].filePath;
     bool isComFile = fileName.endsWith(".com", Qt::CaseInsensitive);
 
-    if (fileName.isEmpty() || tabWidget->tabText(tabWidget->currentIndex()) == tr("New File")) {
+    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
         fileName = QCoreApplication::applicationDirPath() + (isComFile ? "/temp_run.com" : "/temp_run.txt");
         if (!fileController->saveFile(fileName, editor->getText())) {
-            qDebug() << "Не удалось сохранить временный файл для выполнения:" << fileName;
+            qDebug() << "Failed to save temporary file for execution:" << fileName;
             return;
         }
+        editorTabs[index].filePath = fileName;
     }
 
-    fileController->runScript(fileName);
+    QString output = fileController->runScript(fileName);
+    updateOutputConsole(index, fileName);
 
     if (fileName.endsWith("temp_run.txt") || fileName.endsWith("temp_run.com")) {
         QFile::remove(fileName);
+        editorTabs[index].filePath = "";
     }
 }
 
@@ -262,7 +264,7 @@ void MainWindow::showSettingsDialog() {
     connect(dialog, &SettingsDialog::saveSettingsRequested, this, [this](const QMap<QString, QVariant>& settings) {
         bool autoSave = settings["autoSave"].toBool();
         for (int i = 0; i < tabWidget->count(); ++i) {
-            CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
+            CodeEditor* editor = editorTabs[i].editor;
             if (editor) {
                 disconnect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
                 if (autoSave) {
@@ -278,7 +280,7 @@ void MainWindow::showSettingsDialog() {
 void MainWindow::showHelp() {
     if (!helpWindow) {
         helpWindow = new QMainWindow(this);
-        helpWindow->setWindowTitle(tr("Справка по DebugCrafter"));
+        helpWindow->setWindowTitle(tr("Debug3000 Help"));
         helpWindow->setMinimumSize(800, 600);
 
         helpView = new QWebEngineView(helpWindow);
@@ -291,8 +293,7 @@ void MainWindow::showHelp() {
         helpView->load(QUrl("qrc:/help/help.html"));
         connect(helpView, &QWebEngineView::loadFinished, this, [this](bool ok) {
             if (!ok) {
-                qDebug() << "Ошибка загрузки справки";
-                QMessageBox::warning(this, tr("Ошибка"), tr("Не удалось загрузить файл справки."));
+                QMessageBox::warning(this, tr("Error"), tr("Failed to load help file."));
             }
         });
     }
@@ -303,52 +304,13 @@ void MainWindow::showHelp() {
 
 void MainWindow::updateEditors(const QMap<QString, QVariant>& settings) {
     for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor) {
-            editor->setTheme(settings["theme"].toString(),
-                             settings["backgroundColor"].value<QColor>(),
-                             settings["textColor"].value<QColor>(),
-                             settings["highlightColor"].value<QColor>());
-            editor->setFont(settings["font"].value<QFont>());
-            editor->setStandardLineNumbering(settings["standardLineNumbering"].toBool());
-            editor->setAddressLineNumbering(settings["addressLineNumbering"].toBool());
-            editor->setLineWrap(settings["lineWrap"].toBool());
-            editor->setSyntaxHighlighting(settings["syntaxHighlighting"].toBool());
-            editor->setShowMemoryDump(settings["showMemoryDump"].toBool(),
-                                      settings["memoryDumpSegment"].toString(),
-                                      settings["memoryDumpOffset"].toString(),
-                                      settings["memoryDumpLineCount"].toInt());
-        }
+        updateTab(i, settings);
     }
 }
 
 void MainWindow::onLanguageChanged(const QString& language) {
-    bool hasUnsavedChanges = false;
     for (int i = 0; i < tabWidget->count(); ++i) {
-        CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-        if (editor && editor->document()->isModified()) {
-            hasUnsavedChanges = true;
-            break;
-        }
-    }
-
-    if (hasUnsavedChanges) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Unsaved Changes"),
-            tr("You have unsaved changes. Would you like to save them before restarting?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
-            );
-
-        if (reply == QMessageBox::Save) {
-            for (int i = 0; i < tabWidget->count(); ++i) {
-                CodeEditor* editor = qobject_cast<CodeEditor*>(tabWidget->widget(i));
-                if (editor && editor->document()->isModified()) {
-                    tabWidget->setCurrentIndex(i);
-                    saveFile();
-                }
-            }
-        } else if (reply == QMessageBox::Cancel) {
+        if (!promptSaveChanges(i)) {
             return;
         }
     }
@@ -356,13 +318,72 @@ void MainWindow::onLanguageChanged(const QString& language) {
     QMap<QString, QVariant> settings = settingsManager->loadSettings();
     settings["language"] = language;
     settingsManager->saveSettings(settings);
+    updateInterfaceTranslations();
+    isLanguageChangeClosing = true;
     QProcess::startDetached(qApp->arguments()[0], qApp->arguments());
-    qApp->quit();
+    close();
 }
 
 void MainWindow::handleTextChanged() {
     QMap<QString, QVariant> settings = settingsManager->loadSettings();
     if (settings["autoSave"].toBool()) {
         saveFile();
+    }
+}
+
+void MainWindow::updateTab(int index, const QMap<QString, QVariant>& settings) {
+    EditorTab& tab = editorTabs[index];
+    if (tab.editor) {
+        tab.editor->setTheme(settings["theme"].toString(),
+                             settings["backgroundColor"].value<QColor>(),
+                             settings["textColor"].value<QColor>(),
+                             settings["highlightColor"].value<QColor>());
+        tab.editor->setFont(settings["font"].value<QFont>());
+        tab.editor->setStandardLineNumbering(settings["standardLineNumbering"].toBool());
+        tab.editor->setAddressLineNumbering(settings["addressLineNumbering"].toBool());
+        tab.editor->setLineWrap(settings["lineWrap"].toBool());
+        tab.editor->setSyntaxHighlighting(settings["syntaxHighlighting"].toBool());
+        tab.editor->setShowMemoryDump(settings["showMemoryDump"].toBool(),
+                                      settings["memoryDumpSegment"].toString(),
+                                      settings["memoryDumpOffset"].toString(),
+                                      settings["memoryDumpLineCount"].toInt());
+        tab.outputConsole->setVisible(settings["showOutputConsole"].toBool());
+    }
+}
+
+void MainWindow::updateOutputConsole(int index, const QString& filePath) {
+    QString outputPath = QCoreApplication::applicationDirPath() + "/out.txt";
+    QFile outputFile(outputPath);
+    if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+    QTextStream in(&outputFile);
+    in.setEncoding(QStringConverter::Utf8);
+    QString content = in.readAll();
+    outputFile.close();
+    editorTabs[index].outputConsole->setPlainText(content);
+}
+
+bool MainWindow::promptSaveChanges(int index) {
+    if (!editorTabs.contains(index) || !editorTabs[index].editor->document()->isModified()) {
+        return true;
+    }
+
+    QString tabName = tabWidget->tabText(index);
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        tr("Unsaved Changes"),
+        tr("The file '%1' has unsaved changes. Would you like to save them?").arg(tabName),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+        );
+
+    if (reply == QMessageBox::Save) {
+        tabWidget->setCurrentIndex(index);
+        saveFile();
+        return !editorTabs[index].editor->document()->isModified();
+    } else if (reply == QMessageBox::Discard) {
+        return true;
+    } else {
+        return false;
     }
 }

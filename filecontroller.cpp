@@ -2,6 +2,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QFileInfo>
+#include <QCoreApplication>
 
 FileController::FileController(QObject* parent) : QObject(parent) {
     processor = new FileProcessor(this);
@@ -44,8 +45,16 @@ bool FileController::saveAsFile(const QString& path, const QString& content) {
 }
 
 QString FileController::runScript(const QString& filePath) {
-    if (filePath.endsWith(".txt") || filePath.endsWith(".com") || filePath.endsWith(".COM")) {
-        return runner->runDebugScript(filePath);
+    QString output = runner->runDebugScript(filePath);
+    QString outputPath = QCoreApplication::applicationDirPath() + "/out.txt";
+    QFile outputFile(outputPath);
+    if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug() << "Не удалось открыть файл вывода:" << outputPath << "-" << outputFile.errorString();
+        return QString();
     }
-    return QString();
+    QTextStream in(&outputFile);
+    in.setEncoding(QStringConverter::Utf8);
+    QString content = in.readAll();
+    outputFile.close();
+    return content;
 }

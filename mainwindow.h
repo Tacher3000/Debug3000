@@ -7,6 +7,8 @@
 #include <QVariant>
 #include <QTranslator>
 #include <QWebEngineView>
+#include <QSplitter>
+#include <QTextEdit>
 #include "codeeditor.h"
 #include "settingsmanager.h"
 #include "settingsdialog.h"
@@ -48,10 +50,22 @@ private:
     QToolBar* toolBar;
     QWebEngineView* helpView;
     QMainWindow* helpWindow;
+    bool isLanguageChangeClosing;
+    bool promptSaveChanges(int index);
     void createMenus();
     void createToolBar();
     void updateInterfaceTranslations();
     CodeEditor* getCurrentEditor() const;
+
+    struct EditorTab {
+        CodeEditor* editor;
+        QSplitter* splitter;
+        QTextEdit* outputConsole;
+        QString filePath;
+    };
+    QMap<int, EditorTab> editorTabs;
+    void updateOutputConsole(int index, const QString& filePath);
+    void updateTab(int index, const QMap<QString, QVariant>& settings);
 };
 
 #endif // MAINWINDOW_H

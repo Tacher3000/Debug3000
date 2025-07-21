@@ -41,6 +41,7 @@ private:
     QLineEdit* memoryDumpSegmentEdit;
     QLineEdit* memoryDumpOffsetEdit;
     QSpinBox* memoryDumpLineCountSpinBox;
+    QCheckBox* showOutputConsoleCheckBox;
     QPushButton* resetButton;
     QPushButton* okButton;
     QPushButton* cancelButton;
