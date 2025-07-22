@@ -694,16 +694,17 @@ int CodeEditor::calculateAddressWidth() const {
 }
 
 void CodeEditor::processEditCommand(const QString& line, int blockNumber) {
+    Q_UNUSED(blockNumber)
     QString trimmed = line.trimmed();
-    QRegularExpression re("^E\\s+([0-9A-Fa-f]+)\\s+(.+)$", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression re("^E\\s+([0-9A-Fa-f]+:)?([0-9A-Fa-f]+)\\s+(.+)$", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatch match = re.match(trimmed);
     if (!match.hasMatch()) return;
 
     bool ok;
-    int address = match.captured(1).toInt(&ok, 16);
+    int address = match.captured(2).toInt(&ok, 16);
     if (!ok) return;
 
-    QString dataPart = match.captured(2);
+    QString dataPart = match.captured(3);
     QByteArray data;
 
     QRegularExpression stringRe("^\"(.+)\"$", QRegularExpression::CaseInsensitiveOption);
@@ -722,20 +723,21 @@ void CodeEditor::processEditCommand(const QString& line, int blockNumber) {
     }
 
     if (!data.isEmpty()) {
-        int currentAddress = address;
-        int dataSize = data.size();
+        int globalOffset = address;
         int pos = 0;
+        while (pos < data.size()) {
+            int blockAddress = globalOffset & ~0xF;
+            int offsetInBlock = globalOffset & 0xF;
+            int bytesToWrite = qMin(16 - offsetInBlock, data.size() - pos);
 
-        while (pos < dataSize) {
-            QByteArray block;
-            int bytesToTake = qMin(16, dataSize - pos);
-            block = data.mid(pos, bytesToTake);
-            if (block.size() < 16) {
-                block.resize(16, 0);
+            QByteArray block = memoryChanges.value(blockAddress, QByteArray(16, 0));
+            for (int i = 0; i < bytesToWrite; ++i) {
+                block[offsetInBlock + i] = data[pos + i];
             }
-            memoryChanges[currentAddress] = block;
-            pos += 16;
-            currentAddress += 16;
+            memoryChanges[blockAddress] = block;
+
+            pos += bytesToWrite;
+            globalOffset += bytesToWrite;
         }
     }
 }
