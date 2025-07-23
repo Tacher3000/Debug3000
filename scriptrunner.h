@@ -10,7 +10,8 @@ public:
     ScriptRunner(QObject* parent = nullptr);
     ~ScriptRunner();
     QString convertComToTxt(const QString& path);
-    QString runDebugScript(const QString& filePath);
+    QString pasteCodeToDebug(const QString& filePath);
+    QString compileAndRunCom(const QString& filePath);
 };
 
 #endif // SCRIPTRUNNER_H

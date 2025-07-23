@@ -44,17 +44,10 @@ bool FileController::saveAsFile(const QString& path, const QString& content) {
     return false;
 }
 
-QString FileController::runScript(const QString& filePath) {
-    QString output = runner->runDebugScript(filePath);
-    QString outputPath = QCoreApplication::applicationDirPath() + "/out.txt";
-    QFile outputFile(outputPath);
-    if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Не удалось открыть файл вывода:" << outputPath << "-" << outputFile.errorString();
-        return QString();
-    }
-    QTextStream in(&outputFile);
-    in.setEncoding(QStringConverter::Utf8);
-    QString content = in.readAll();
-    outputFile.close();
-    return content;
+QString FileController::pasteCodeToDebug(const QString& filePath) {
+    return runner->pasteCodeToDebug(filePath);
+}
+
+QString FileController::compileAndRunCom(const QString& filePath) {
+    return runner->compileAndRunCom(filePath);
 }

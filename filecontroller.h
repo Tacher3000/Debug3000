@@ -13,7 +13,8 @@ public:
     QString openFile(const QString& path);
     bool saveFile(const QString& path, const QString& content);
     bool saveAsFile(const QString& path, const QString& content);
-    QString runScript(const QString& filePath);
+    QString pasteCodeToDebug(const QString& filePath);
+    QString compileAndRunCom(const QString& filePath);
 private:
     FileProcessor* processor;
     ScriptRunner* runner;

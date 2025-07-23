@@ -69,8 +69,10 @@ void MainWindow::createMenus() {
     saveAction->setShortcut(QKeySequence::Save);
     saveAsAction = fileMenu->addAction(tr("Save As"));
     saveAsAction->setShortcut(QKeySequence::SaveAs);
-    runAction = fileMenu->addAction(tr("Run"));
-    runAction->setShortcut(Qt::Key_F5);
+    pasteCodeAction = fileMenu->addAction(tr("Paste Code"));
+    pasteCodeAction->setShortcut(Qt::Key_F6);
+    compileAndRunAction = fileMenu->addAction(tr("Compile and Run"));
+    compileAndRunAction->setShortcut(Qt::Key_F5);
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
     helpMenu = menuBar()->addMenu(tr("Help"));
@@ -79,7 +81,8 @@ void MainWindow::createMenus() {
     connect(openAction, &QAction::triggered, this, &MainWindow::openFile);
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
     connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveFileAs);
-    connect(runAction, &QAction::triggered, this, &MainWindow::runCode);
+    connect(pasteCodeAction, &QAction::triggered, this, &MainWindow::pasteCode);
+    connect(compileAndRunAction, &QAction::triggered, this, &MainWindow::compileAndRun);
     connect(settingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
     connect(helpAction, &QAction::triggered, this, &MainWindow::showHelp);
 }
@@ -90,7 +93,8 @@ void MainWindow::createToolBar() {
     toolBar->addAction(openAction);
     toolBar->addAction(saveAction);
     toolBar->addAction(saveAsAction);
-    toolBar->addAction(runAction);
+    toolBar->addAction(pasteCodeAction);
+    toolBar->addAction(compileAndRunAction);
     toolBar->addAction(settingsAction);
     toolBar->addAction(helpAction);
 }
@@ -102,7 +106,8 @@ void MainWindow::updateInterfaceTranslations() {
     openAction->setText(tr("Open"));
     saveAction->setText(tr("Save"));
     saveAsAction->setText(tr("Save As"));
-    runAction->setText(tr("Run"));
+    pasteCodeAction->setText(tr("Paste Code"));
+    compileAndRunAction->setText(tr("Compile and Run"));
     settingsMenu->setTitle(tr("Settings"));
     settingsAction->setText(tr("Preferences"));
     helpMenu->setTitle(tr("Help"));
@@ -229,16 +234,39 @@ void MainWindow::saveFileAs() {
     }
 }
 
-void MainWindow::runCode() {
+void MainWindow::pasteCode() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
     int index = tabWidget->currentIndex();
     QString fileName = editorTabs[index].filePath;
-    bool isComFile = fileName.endsWith(".com", Qt::CaseInsensitive);
 
     if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
-        fileName = QCoreApplication::applicationDirPath() + (isComFile ? "/temp_run.com" : "/temp_run.txt");
+        fileName = QCoreApplication::applicationDirPath() + "/temp_paste.txt";
+        if (!fileController->saveFile(fileName, editor->getText())) {
+            qDebug() << "Failed to save temporary file for pasting:" << fileName;
+            return;
+        }
+        editorTabs[index].filePath = fileName;
+    }
+
+    fileController->pasteCodeToDebug(fileName);
+
+    if (fileName.endsWith("temp_paste.txt")) {
+        QFile::remove(fileName);
+        editorTabs[index].filePath = "";
+    }
+}
+
+void MainWindow::compileAndRun() {
+    CodeEditor* editor = getCurrentEditor();
+    if (!editor) return;
+
+    int index = tabWidget->currentIndex();
+    QString fileName = editorTabs[index].filePath;
+
+    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
+        fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
         if (!fileController->saveFile(fileName, editor->getText())) {
             qDebug() << "Failed to save temporary file for execution:" << fileName;
             return;
@@ -246,10 +274,10 @@ void MainWindow::runCode() {
         editorTabs[index].filePath = fileName;
     }
 
-    QString output = fileController->runScript(fileName);
+    QString output = fileController->compileAndRunCom(fileName);
     updateOutputConsole(index, fileName);
 
-    if (fileName.endsWith("temp_run.txt") || fileName.endsWith("temp_run.com")) {
+    if (fileName.endsWith("temp_run.txt")) {
         QFile::remove(fileName);
         editorTabs[index].filePath = "";
     }

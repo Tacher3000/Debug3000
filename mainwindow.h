@@ -26,7 +26,8 @@ private slots:
     void openFile();
     void saveFile();
     void saveFileAs();
-    void runCode();
+    void pasteCode();
+    void compileAndRun();
     void showSettingsDialog();
     void showHelp();
     void updateEditors(const QMap<QString, QVariant>& settings);
@@ -41,7 +42,8 @@ private:
     QAction* openAction;
     QAction* saveAction;
     QAction* saveAsAction;
-    QAction* runAction;
+    QAction* pasteCodeAction;
+    QAction* compileAndRunAction;
     QAction* settingsAction;
     QAction* helpAction;
     QMenu* fileMenu;

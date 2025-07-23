@@ -129,9 +129,7 @@ QString ScriptRunner::convertComToTxt(const QString& path) {
     return content;
 }
 
-QString ScriptRunner::runDebugScript(const QString& filePath) {
-    QString currentDir = QCoreApplication::applicationDirPath();
-
+QString ScriptRunner::pasteCodeToDebug(const QString& filePath) {
     QFile inputFile(filePath);
     if (!inputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qDebug() << "Не удалось открыть входной файл:" << filePath << "-" << inputFile.errorString();
@@ -142,8 +140,70 @@ QString ScriptRunner::runDebugScript(const QString& filePath) {
     QString content = in.readAll();
     inputFile.close();
 
-    bool hasWriteCommand = content.contains(QRegularExpression("^\\s*w\\s*$", QRegularExpression::MultilineOption));
+    QString currentDir = QCoreApplication::applicationDirPath();
+    QString disk = currentDir.left(1);
+    QString exePath = currentDir + "/EXE";
+    QString dosboxExe = exePath + "/DOSBoxX/dosbox-x.exe";
+    QString dosboxConf = exePath + "/DOSBoxX/dosbox-x.conf";
+    QString curPathDB = currentDir.mid(3);
 
+    LoadKeyboardLayout(L"00000409", KLF_ACTIVATE);
+
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(content);
+
+    QStringList arguments;
+    arguments << "-conf" << dosboxConf
+              << "-c" << QString("mount d %1:\\").arg(disk)
+              << "-c" << "d:"
+              << "-c" << QString("cd %1").arg(curPathDB)
+              << "-c" << "debug";
+
+    QProcess::startDetached(dosboxExe, arguments);
+
+    QTimer::singleShot(2000, this, [this]() {
+        INPUT inputs[4] = {};
+        ZeroMemory(inputs, sizeof(inputs));
+
+        inputs[0].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = VK_CONTROL;
+
+        inputs[1].type = INPUT_KEYBOARD;
+        inputs[1].ki.wVk = VK_F6;
+
+        inputs[2].type = INPUT_KEYBOARD;
+        inputs[2].ki.wVk = VK_F6;
+        inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        inputs[3].type = INPUT_KEYBOARD;
+        inputs[3].ki.wVk = VK_CONTROL;
+        inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        SendInput(4, inputs, sizeof(INPUT));
+    });
+
+    return QString();
+}
+
+QString ScriptRunner::compileAndRunCom(const QString& filePath) {
+    QFile inputFile(filePath);
+    if (!inputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug() << "Не удалось открыть входной файл:" << filePath << "-" << inputFile.errorString();
+        return QString();
+    }
+    QTextStream in(&inputFile);
+    in.setEncoding(QStringConverter::Utf8);
+    QString content = in.readAll();
+    inputFile.close();
+
+    // bool hasWriteCommand = content.contains(QRegularExpression("^\\s*w\\s*$", QRegularExpression::MultilineOption));
+
+    // if (!hasWriteCommand) {
+    //     qDebug() << "Команда 'w' не найдена в скрипте. Компиляция COM-файла невозможна.";
+    //     return QString();
+    // }
+
+    QString currentDir = QCoreApplication::applicationDirPath();
     QString tempScriptPath = currentDir + "/run.txt";
     QFile tempScript(tempScriptPath);
     if (!tempScript.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -167,71 +227,40 @@ QString ScriptRunner::runDebugScript(const QString& filePath) {
     arguments << "-conf" << dosboxConf
               << "-c" << QString("mount d %1:\\").arg(disk)
               << "-c" << "d:"
-              << "-c" << QString("cd %1").arg(curPathDB);
+              << "-c" << QString("cd %1").arg(curPathDB)
+              << "-c" << QString("debug < run.txt > out.txt")
+              << "-c" << "if exist out.com out.com"
+              << "-c" << "exit";
 
-    if (hasWriteCommand) {
-        arguments << "-c" << QString("debug < run.txt > out.txt")
-        << "-c" << "if exist out.com out.com"
-        << "-c" << "exit";
-
-        QProcess process;
-        process.start(dosboxExe, arguments);
-        if (!process.waitForStarted()) {
-            qDebug() << "Не удалось запустить DOSBox-X:" << process.errorString();
-            QFile::remove(tempScriptPath);
-            return QString();
-        }
-
-        if (!process.waitForFinished(30000)) {
-            qDebug() << "DOSBox-X не завершился вовремя:" << process.errorString();
-            QFile::remove(tempScriptPath);
-            return QString();
-        }
-
-        QFile outputFile(tempOutputPath);
-        if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qDebug() << "Не удалось открыть файл вывода:" << tempOutputPath << "-" << outputFile.errorString();
-            QFile::remove(tempScriptPath);
-            return QString();
-        }
-
-        QTextStream outIn(&outputFile);
-        outIn.setEncoding(QStringConverter::Utf8);
-        QString outputContent = outIn.readAll();
-        outputFile.close();
-
-        QFile::remove(tempScriptPath);
-        QFile::remove(comFilePath);
-        return outputContent;
-    } else {
-        QClipboard *clipboard = QApplication::clipboard();
-        clipboard->setText(content);
-        arguments << "-c" << "debug";
-
-        QProcess::startDetached(dosboxExe, arguments);
-
-        QTimer::singleShot(2000, this, [this]() {
-            INPUT inputs[4] = {};
-            ZeroMemory(inputs, sizeof(inputs));
-
-            inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_CONTROL;
-
-            inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = VK_F6;
-
-            inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = VK_F6;
-            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-
-            inputs[3].type = INPUT_KEYBOARD;
-            inputs[3].ki.wVk = VK_CONTROL;
-            inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-
-            SendInput(4, inputs, sizeof(INPUT));
-        });
-
+    QProcess process;
+    process.start(dosboxExe, arguments);
+    // QProcess::startDetached(dosboxExe, arguments);
+    if (!process.waitForStarted()) {
+        qDebug() << "Не удалось запустить DOSBox-X:" << process.errorString();
         QFile::remove(tempScriptPath);
         return QString();
     }
+
+    if (!process.waitForFinished(30000)) {
+        qDebug() << "DOSBox-X не завершился вовремя:" << process.errorString();
+        QFile::remove(tempScriptPath);
+        return QString();
+    }
+
+    QFile outputFile(tempOutputPath);
+    if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug() << "Не удалось открыть файл вывода:" << tempOutputPath << "-" << outputFile.errorString();
+        QFile::remove(tempScriptPath);
+        return QString();
+    }
+
+    QTextStream outIn(&outputFile);
+    outIn.setEncoding(QStringConverter::Utf8);
+    QString outputContent = outIn.readAll();
+    outputFile.close();
+
+    QFile::remove(tempScriptPath);
+    QFile::remove(comFilePath);
+
+    return outputContent;
 }
