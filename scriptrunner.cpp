@@ -185,58 +185,71 @@ QString ScriptRunner::pasteCodeToDebug(const QString& filePath) {
 }
 
 void ScriptRunner::compileAndRunCom(const QString& filePath) {
-    QFile inputFile(filePath);
-    if (!inputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Не удалось открыть входной файл:" << filePath << "-" << inputFile.errorString();
-        emit compileAndRunFinished(QString());
-        return;
-    }
-    QTextStream in(&inputFile);
-    in.setEncoding(QStringConverter::Utf8);
-    QString content = in.readAll();
-    inputFile.close();
-
-    // bool hasWriteCommand = content.contains(QRegularExpression("^\\s*w\\s*$", QRegularExpression::MultilineOption));
-
-    // if (!hasWriteCommand) {
-    //     qDebug() << "Команда 'w' не найдена в скрипте. Компиляция COM-файла невозможна.";
-    //     emit compileAndRunFinished(QString());
-    //     return;
-    // }
-
     QString currentDir = QCoreApplication::applicationDirPath();
+    QString tempOutputPath = currentDir + "/out.txt";
+    QString comFilePath = currentDir + "/out.com";
     QString tempScriptPath = currentDir + "/run.txt";
-    QFile::remove(tempScriptPath);
-    QFile tempScript(tempScriptPath);
-    if (!tempScript.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "Не удалось создать временный скрипт:" << tempScriptPath << "-" << tempScript.errorString();
-        emit compileAndRunFinished(QString());
-        return;
-    }
-    QTextStream scriptOut(&tempScript);
-    scriptOut.setEncoding(QStringConverter::Utf8);
-    scriptOut << content;
-    tempScript.close();
+
+    QFileInfo fileInfo(filePath);
+    bool isComFile = filePath.endsWith(".com", Qt::CaseInsensitive);
 
     QString disk = currentDir.left(1);
     QString exePath = currentDir + "/EXE";
     QString dosboxExe = exePath + "/DOSBoxX/dosbox-x.exe";
     QString dosboxConf = exePath + "/DOSBoxX/dosbox-x.conf";
     QString curPathDB = currentDir.mid(3);
-    QString tempOutputPath = currentDir + "/out.txt";
-    QString comFilePath = currentDir + "/out.com";
-
-    QFile::remove(tempOutputPath);
-    QFile::remove(comFilePath);
 
     QStringList arguments;
     arguments << "-conf" << dosboxConf
               << "-c" << QString("mount d %1:\\").arg(disk)
               << "-c" << "d:"
-              << "-c" << QString("cd %1").arg(curPathDB)
-              << "-c" << QString("debug < run.txt > out.txt")
-              << "-c" << "if exist out.com out.com"
-              << "-c" << "exit";
+              << "-c" << QString("cd %1").arg(curPathDB);
+
+    if (isComFile) {
+        QFile sourceFile(filePath);
+        if (fileInfo.canonicalPath() != currentDir) {
+            if (!sourceFile.copy(comFilePath)) {
+                qDebug() << "Failed to copy COM file to project directory:" << filePath << "-" << sourceFile.errorString();
+                emit compileAndRunFinished(QString());
+                return;
+            }
+        }
+        arguments << "-c" << "debug out.com"
+                  << "-c" << "exit";
+    } else {
+        QFile inputFile(filePath);
+        if (!inputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qDebug() << "Не удалось открыть входной файл:" << filePath << "-" << inputFile.errorString();
+            emit compileAndRunFinished(QString());
+            return;
+        }
+        QTextStream in(&inputFile);
+        in.setEncoding(QStringConverter::Utf8);
+        QString content = in.readAll();
+        inputFile.close();
+
+        // bool hasWriteCommand = content.contains(QRegularExpression("^\\s*w\\s*$", QRegularExpression::MultilineOption));
+        // if (!hasWriteCommand) {
+        //     qDebug() << "Команда 'w' не найдена в скрипте. Компиляция COM-файла невозможна.";
+        //     emit compileAndRunFinished(QString());
+        //     return;
+        // }
+
+        QFile tempScript(tempScriptPath);
+        if (!tempScript.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qDebug() << "Не удалось создать временный скрипт:" << tempScriptPath << "-" << tempScript.errorString();
+            emit compileAndRunFinished(QString());
+            return;
+        }
+        QTextStream scriptOut(&tempScript);
+        scriptOut.setEncoding(QStringConverter::Utf8);
+        scriptOut << content;
+        tempScript.close();
+
+        arguments << "-c" << QString("debug < run.txt > out.txt")
+                  << "-c" << "if exist out.com out.com"
+                  << "-c" << "exit";
+    }
 
     QProcess* process = new QProcess(this);
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [=](int exitCode, QProcess::ExitStatus exitStatus) {
@@ -247,18 +260,15 @@ void ScriptRunner::compileAndRunCom(const QString& filePath) {
             outIn.setEncoding(QStringConverter::Utf8);
             outputContent = outIn.readAll();
             outputFile.close();
-            qDebug() << "Output file read successfully:" << tempOutputPath;
             QFile::remove(tempOutputPath);
         } else {
             qDebug() << "Не удалось открыть файл вывода:" << tempOutputPath << "-" << outputFile.errorString();
         }
 
-        if (QFile::exists(tempScriptPath)) {
+        if (!isComFile) {
             QFile::remove(tempScriptPath);
         }
-        if (QFile::exists(comFilePath)) {
-            QFile::remove(comFilePath);
-        }
+        QFile::remove(comFilePath);
 
         emit compileAndRunFinished(outputContent);
         process->deleteLater();
@@ -267,7 +277,7 @@ void ScriptRunner::compileAndRunCom(const QString& filePath) {
     process->start(dosboxExe, arguments);
     if (!process->waitForStarted()) {
         qDebug() << "Не удалось запустить DOSBox-X:" << process->errorString();
-        if (QFile::exists(tempScriptPath)) {
+        if (!isComFile) {
             QFile::remove(tempScriptPath);
         }
         emit compileAndRunFinished(QString());

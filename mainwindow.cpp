@@ -72,8 +72,8 @@ void MainWindow::createMenus() {
     saveAsAction->setShortcut(QKeySequence::SaveAs);
     pasteCodeAction = fileMenu->addAction(tr("Paste Code"));
     pasteCodeAction->setShortcut(Qt::Key_F6);
-    compileAndRunAction = fileMenu->addAction(tr("Compile and Run"));
-    compileAndRunAction->setShortcut(Qt::Key_F5);
+    runAction = fileMenu->addAction(tr("Run"));
+    runAction->setShortcut(Qt::Key_F5);
     settingsMenu = menuBar()->addMenu(tr("Settings"));
     settingsAction = settingsMenu->addAction(tr("Preferences"));
     helpMenu = menuBar()->addMenu(tr("Help"));
@@ -83,7 +83,7 @@ void MainWindow::createMenus() {
     connect(saveAction, &QAction::triggered, this, &MainWindow::saveFile);
     connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveFileAs);
     connect(pasteCodeAction, &QAction::triggered, this, &MainWindow::pasteCode);
-    connect(compileAndRunAction, &QAction::triggered, this, &MainWindow::compileAndRun);
+    connect(runAction, &QAction::triggered, this, &MainWindow::run);
     connect(settingsAction, &QAction::triggered, this, &MainWindow::showSettingsDialog);
     connect(helpAction, &QAction::triggered, this, &MainWindow::showHelp);
 }
@@ -95,7 +95,7 @@ void MainWindow::createToolBar() {
     toolBar->addAction(saveAction);
     toolBar->addAction(saveAsAction);
     toolBar->addAction(pasteCodeAction);
-    toolBar->addAction(compileAndRunAction);
+    toolBar->addAction(runAction);
     toolBar->addAction(settingsAction);
     toolBar->addAction(helpAction);
 }
@@ -108,7 +108,7 @@ void MainWindow::updateInterfaceTranslations() {
     saveAction->setText(tr("Save"));
     saveAsAction->setText(tr("Save As"));
     pasteCodeAction->setText(tr("Paste Code"));
-    compileAndRunAction->setText(tr("Compile and Run"));
+    runAction->setText(tr("Run"));
     settingsMenu->setTitle(tr("Settings"));
     settingsAction->setText(tr("Preferences"));
     helpMenu->setTitle(tr("Help"));
@@ -149,7 +149,7 @@ void MainWindow::newFile() {
     outputConsole->setVisible(settings["showOutputConsole"].toBool());
     tabWidget->addTab(splitter, tr("New File"));
     tabWidget->setCurrentWidget(splitter);
-    EditorTab tab = {editor, splitter, outputConsole, ""};
+    EditorTab tab = {editor, splitter, outputConsole, "", false};
     editorTabs[tabWidget->currentIndex()] = tab;
     updateTab(tabWidget->currentIndex(), settings);
     if (settings["autoSave"].toBool()) {
@@ -178,6 +178,10 @@ void MainWindow::openFile() {
     QString content = fileController->openFile(fileName);
     CodeEditor* editor = new CodeEditor();
     editor->setText(content);
+    bool isComFile = fileName.endsWith(".com", Qt::CaseInsensitive);
+    if (isComFile) {
+        editor->setReadOnly(true);
+    }
     QSplitter* splitter = new QSplitter(Qt::Vertical);
     QTextEdit* outputConsole = new QTextEdit();
     outputConsole->setReadOnly(true);
@@ -189,10 +193,10 @@ void MainWindow::openFile() {
     outputConsole->setVisible(settings["showOutputConsole"].toBool());
     tabWidget->addTab(splitter, QFileInfo(fileName).fileName());
     tabWidget->setCurrentWidget(splitter);
-    EditorTab tab = {editor, splitter, outputConsole, fileName};
+    EditorTab tab = {editor, splitter, outputConsole, fileName, isComFile};
     editorTabs[tabWidget->currentIndex()] = tab;
     updateTab(tabWidget->currentIndex(), settings);
-    if (settings["autoSave"].toBool()) {
+    if (settings["autoSave"].toBool() && !isComFile) {
         connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
     }
 }
@@ -202,13 +206,13 @@ void MainWindow::saveFile() {
     if (!editor) return;
 
     int index = tabWidget->currentIndex();
-    QString fileName = editorTabs[index].filePath;
-    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
-        saveFileAs();
+    if (editorTabs[index].isReadOnly) {
+        QMessageBox::warning(this, tr("Read-Only File"), tr("Cannot save a read-only COM file."));
         return;
     }
 
-    if (fileName.endsWith(".com", Qt::CaseInsensitive)) {
+    QString fileName = editorTabs[index].filePath;
+    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
         saveFileAs();
         return;
     }
@@ -224,12 +228,19 @@ void MainWindow::saveFileAs() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
+    int index = tabWidget->currentIndex();
+    if (editorTabs[index].isReadOnly) {
+        QMessageBox::warning(this, tr("Read-Only File"), tr("Cannot save a read-only COM file."));
+        return;
+    }
+
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File As"), "", tr("Text Files (*.txt);;All Files (*)"));
     if (!fileName.isEmpty()) {
         if (fileController->saveAsFile(fileName, editor->getText())) {
-            int index = tabWidget->currentIndex();
             tabWidget->setTabText(index, QFileInfo(fileName).fileName());
             editorTabs[index].filePath = fileName;
+            editorTabs[index].isReadOnly = false;
+            editor->setReadOnly(false);
             editor->document()->setModified(false);
         }
     }
@@ -240,8 +251,12 @@ void MainWindow::pasteCode() {
     if (!editor) return;
 
     int index = tabWidget->currentIndex();
-    QString fileName = editorTabs[index].filePath;
+    if (editorTabs[index].isReadOnly) {
+        QMessageBox::warning(this, tr("Read-Only File"), tr("Cannot paste code into a read-only COM file."));
+        return;
+    }
 
+    QString fileName = editorTabs[index].filePath;
     if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
         fileName = QCoreApplication::applicationDirPath() + "/temp_paste.txt";
         if (!fileController->saveFile(fileName, editor->getText())) {
@@ -264,20 +279,26 @@ void MainWindow::pasteCode() {
     }
 }
 
-void MainWindow::compileAndRun() {
+void MainWindow::run() {
     CodeEditor* editor = getCurrentEditor();
     if (!editor) return;
 
     int index = tabWidget->currentIndex();
     QString fileName = editorTabs[index].filePath;
 
-    // Always save the current editor content to the file before compilation
     if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
+        if (editorTabs[index].isReadOnly) {
+            QMessageBox::warning(this, tr("Invalid File"), tr("Cannot run a new file as a COM file."));
+            return;
+        }
         fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
+        if (!fileController->saveFile(fileName, editor->getText())) {
+            qDebug() << "Failed to save temporary file for execution:" << fileName;
+            return;
+        }
         editorTabs[index].filePath = fileName;
-    }
-    if (!fileController->saveFile(fileName, editor->getText())) {
-        qDebug() << "Failed to save file for execution:" << fileName;
+    } else if (editorTabs[index].isReadOnly && !fileName.endsWith(".com", Qt::CaseInsensitive)) {
+        QMessageBox::warning(this, tr("Invalid File"), tr("Read-only files must be COM files to run."));
         return;
     }
 
@@ -306,7 +327,7 @@ void MainWindow::showSettingsDialog() {
         bool autoSave = settings["autoSave"].toBool();
         for (int i = 0; i < tabWidget->count(); ++i) {
             CodeEditor* editor = editorTabs[i].editor;
-            if (editor) {
+            if (editor && !editorTabs[i].isReadOnly) {
                 disconnect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
                 if (autoSave) {
                     connect(editor, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
@@ -399,7 +420,7 @@ void MainWindow::updateOutputConsole(int index, const QString& output) {
 }
 
 bool MainWindow::promptSaveChanges(int index) {
-    if (!editorTabs.contains(index) || !editorTabs[index].editor->document()->isModified()) {
+    if (!editorTabs.contains(index) || !editorTabs[index].editor->document()->isModified() || editorTabs[index].isReadOnly) {
         return true;
     }
 

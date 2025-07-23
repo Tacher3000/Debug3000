@@ -27,7 +27,7 @@ private slots:
     void saveFile();
     void saveFileAs();
     void pasteCode();
-    void compileAndRun();
+    void run();
     void onCompileAndRunFinished(const QString& output);
     void showSettingsDialog();
     void showHelp();
@@ -44,7 +44,7 @@ private:
     QAction* saveAction;
     QAction* saveAsAction;
     QAction* pasteCodeAction;
-    QAction* compileAndRunAction;
+    QAction* runAction;
     QAction* settingsAction;
     QAction* helpAction;
     QMenu* fileMenu;
@@ -65,6 +65,7 @@ private:
         QSplitter* splitter;
         QTextEdit* outputConsole;
         QString filePath;
+        bool isReadOnly;
     };
     QMap<int, EditorTab> editorTabs;
     void updateOutputConsole(int index, const QString& output);
