@@ -28,6 +28,7 @@ private slots:
     void saveFileAs();
     void pasteCode();
     void compileAndRun();
+    void onCompileAndRunFinished(const QString& output);
     void showSettingsDialog();
     void showHelp();
     void updateEditors(const QMap<QString, QVariant>& settings);
@@ -66,7 +67,7 @@ private:
         QString filePath;
     };
     QMap<int, EditorTab> editorTabs;
-    void updateOutputConsole(int index, const QString& filePath);
+    void updateOutputConsole(int index, const QString& output);
     void updateTab(int index, const QMap<QString, QVariant>& settings);
 };
 

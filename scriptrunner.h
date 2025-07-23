@@ -11,7 +11,9 @@ public:
     ~ScriptRunner();
     QString convertComToTxt(const QString& path);
     QString pasteCodeToDebug(const QString& filePath);
-    QString compileAndRunCom(const QString& filePath);
+    void compileAndRunCom(const QString& filePath);
+signals:
+    void compileAndRunFinished(const QString& output);
 };
 
 #endif // SCRIPTRUNNER_H

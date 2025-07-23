@@ -26,6 +26,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), isLanguageChangeC
     createMenus();
     createToolBar();
     connect(settingsManager, &SettingsManager::settingsChanged, this, &MainWindow::updateEditors);
+    connect(fileController, &FileController::compileAndRunFinished, this, &MainWindow::onCompileAndRunFinished);
     connect(tabWidget, &QTabWidget::tabCloseRequested, this, [this](int index) {
         if (promptSaveChanges(index)) {
             editorTabs.remove(index);
@@ -248,6 +249,11 @@ void MainWindow::pasteCode() {
             return;
         }
         editorTabs[index].filePath = fileName;
+    } else {
+        if (!fileController->saveFile(fileName, editor->getText())) {
+            qDebug() << "Failed to save file for pasting:" << fileName;
+            return;
+        }
     }
 
     fileController->pasteCodeToDebug(fileName);
@@ -265,21 +271,28 @@ void MainWindow::compileAndRun() {
     int index = tabWidget->currentIndex();
     QString fileName = editorTabs[index].filePath;
 
+    // Always save the current editor content to the file before compilation
     if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
         fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
-        if (!fileController->saveFile(fileName, editor->getText())) {
-            qDebug() << "Failed to save temporary file for execution:" << fileName;
-            return;
-        }
         editorTabs[index].filePath = fileName;
     }
+    if (!fileController->saveFile(fileName, editor->getText())) {
+        qDebug() << "Failed to save file for execution:" << fileName;
+        return;
+    }
 
-    QString output = fileController->compileAndRunCom(fileName);
-    updateOutputConsole(index, fileName);
+    fileController->compileAndRunCom(fileName);
+}
 
-    if (fileName.endsWith("temp_run.txt")) {
-        QFile::remove(fileName);
-        editorTabs[index].filePath = "";
+void MainWindow::onCompileAndRunFinished(const QString& output) {
+    int index = tabWidget->currentIndex();
+    if (editorTabs.contains(index)) {
+        QString fileName = editorTabs[index].filePath;
+        updateOutputConsole(index, output);
+        if (fileName.endsWith("temp_run.txt")) {
+            QFile::remove(fileName);
+            editorTabs[index].filePath = "";
+        }
     }
 }
 
@@ -379,17 +392,10 @@ void MainWindow::updateTab(int index, const QMap<QString, QVariant>& settings) {
     }
 }
 
-void MainWindow::updateOutputConsole(int index, const QString& filePath) {
-    QString outputPath = QCoreApplication::applicationDirPath() + "/out.txt";
-    QFile outputFile(outputPath);
-    if (!outputFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return;
+void MainWindow::updateOutputConsole(int index, const QString& output) {
+    if (editorTabs.contains(index)) {
+        editorTabs[index].outputConsole->setPlainText(output);
     }
-    QTextStream in(&outputFile);
-    in.setEncoding(QStringConverter::Utf8);
-    QString content = in.readAll();
-    outputFile.close();
-    editorTabs[index].outputConsole->setPlainText(content);
 }
 
 bool MainWindow::promptSaveChanges(int index) {

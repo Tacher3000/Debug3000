@@ -14,7 +14,9 @@ public:
     bool saveFile(const QString& path, const QString& content);
     bool saveAsFile(const QString& path, const QString& content);
     QString pasteCodeToDebug(const QString& filePath);
-    QString compileAndRunCom(const QString& filePath);
+    void compileAndRunCom(const QString& filePath);
+signals:
+    void compileAndRunFinished(const QString& output);
 private:
     FileProcessor* processor;
     ScriptRunner* runner;

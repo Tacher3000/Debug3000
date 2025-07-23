@@ -7,6 +7,7 @@
 FileController::FileController(QObject* parent) : QObject(parent) {
     processor = new FileProcessor(this);
     runner = new ScriptRunner(this);
+    connect(runner, &ScriptRunner::compileAndRunFinished, this, &FileController::compileAndRunFinished);
 }
 
 FileController::~FileController() {
@@ -48,6 +49,6 @@ QString FileController::pasteCodeToDebug(const QString& filePath) {
     return runner->pasteCodeToDebug(filePath);
 }
 
-QString FileController::compileAndRunCom(const QString& filePath) {
-    return runner->compileAndRunCom(filePath);
+void FileController::compileAndRunCom(const QString& filePath) {
+    runner->compileAndRunCom(filePath);
 }
