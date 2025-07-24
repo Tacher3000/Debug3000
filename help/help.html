@@ -150,6 +150,7 @@
                     <li><a href="#" onclick="showSection('cmd-call')">CALL</a></li>
                     <li><a href="#" onclick="showSection('cmd-push')">PUSH</a></li>
                     <li><a href="#" onclick="showSection('cmd-pop')">POP</a></li>
+                    <li><a href="#" onclick="showSection('cmd-nop')">NOP</a></li>
 
                 </ul>
             </li>
@@ -371,6 +372,13 @@ PUSH [BX]      ; Помещает содержимое памяти по BX в �
             <h2>Примеры</h2>
             <pre><code>POP AX         ; Извлекает значение из стека в AX
 POP [BX]       ; Извлекает значение в память по адресу BX</code></pre>
+        </section>
+        <section id="cmd-nop" style="display: none;">
+            <h1>Команда NOP</h1>
+            <h2>Описание</h2>
+            <p>Команда <code>NOP</code> занимает один байт в памяти и не влияет на регистры или флаги процессора.</p>
+            <h2>Примеры</h2>
+            <pre><code>NOP            ; Ничего не делает</code></pre>
         </section>
         <section id="hotkeys">
             <h1>Горячие клавиши</h1>
