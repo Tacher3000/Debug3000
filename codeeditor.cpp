@@ -34,7 +34,7 @@ void CodeEditor::SyntaxHighlighter::highlightBlock(const QString& text) {
 
     QTextCharFormat instructionFormat;
     instructionFormat.setForeground(Qt::blue);
-    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jz|jnz|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret|xor|and|or|not|loop|nop)\\b", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression instructionRegex("\\b(mov|int|add|sub|cmp|jmp|je|jne|jb|jbe|ja|jae|jg|jge|jl|jle|mul|div|imul|idiv|inc|dec|push|pop|call|ret|xor|and|or|not|loop|nop)\\b", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator it = instructionRegex.globalMatch(text);
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
@@ -473,8 +473,9 @@ int CodeEditor::calculateInstructionLength(const QString& text) {
             return 2;
         }
     } else if (instruction == "JMP" || instruction == "JE" || instruction == "JNE" ||
-               instruction == "JZ" || instruction == "JNZ" || instruction == "JG" ||
-               instruction == "JGE" || instruction == "JL" || instruction == "JLE") {
+               instruction == "JB" || instruction == "JBE" || instruction == "JA" ||
+               instruction == "JAE" || instruction == "JG" || instruction == "JGE" ||
+               instruction == "JL" || instruction == "JLE") {
         return 2;
     } else if (instruction == "MUL" || instruction == "DIV" || instruction == "IMUL" || instruction == "IDIV") {
         return 2;

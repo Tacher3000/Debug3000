@@ -22,6 +22,16 @@ QString ScriptRunner::convertComToTxt(const QString& path) {
     QString currentDir = QCoreApplication::applicationDirPath();
     QString targetFilePath = currentDir + "/" + fileName;
 
+    QString comFilePath = currentDir + "/out.com";
+    if (QFile::exists(comFilePath)) {
+        if (!QFile::remove(comFilePath)) {
+            qDebug() << "Failed to remove existing out.com file:" << comFilePath;
+            return QString();
+        } else {
+            qDebug() << "Successfully removed existing out.com file:" << comFilePath;
+        }
+    }
+
     if (fileInfo.canonicalPath() != currentDir) {
         QFile sourceFile(path);
         if (!sourceFile.copy(targetFilePath)) {

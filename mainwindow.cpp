@@ -285,8 +285,9 @@ void MainWindow::run() {
 
     int index = tabWidget->currentIndex();
     QString fileName = editorTabs[index].filePath;
+    bool isComFile = fileName.endsWith(".com", Qt::CaseInsensitive);
 
-    if (editorTabs[index].isReadOnly && !fileName.endsWith(".com", Qt::CaseInsensitive)) {
+    if (editorTabs[index].isReadOnly && !isComFile) {
         QMessageBox::warning(this, tr("Invalid File"), tr("Read-only files must be COM files to run."));
         return;
     }
@@ -294,42 +295,46 @@ void MainWindow::run() {
     QMap<QString, QVariant> settings = settingsManager->loadSettings();
     bool autoSave = settings["autoSave"].toBool();
 
-    if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
-        fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
-        editorTabs[index].filePath = fileName;
-    } else if (editor->document()->isModified() && !autoSave) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Unsaved Changes"),
-            tr("The file '%1' has unsaved changes. Would you like to save them before running?").arg(tabWidget->tabText(index)),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
-            );
+    if (isComFile) {
+        fileController->compileAndRunCom(fileName);
+    } else {
+        if (fileName.isEmpty() || tabWidget->tabText(index) == tr("New File")) {
+            fileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
+            editorTabs[index].filePath = fileName;
+        } else if (editor->document()->isModified() && !autoSave) {
+            QMessageBox::StandardButton reply = QMessageBox::question(
+                this,
+                tr("Unsaved Changes"),
+                tr("The file '%1' has unsaved changes. Would you like to save them before running?").arg(tabWidget->tabText(index)),
+                QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+                );
 
-        if (reply == QMessageBox::Save) {
-            saveFile();
-            if (editor->document()->isModified()) {
+            if (reply == QMessageBox::Save) {
+                saveFile();
+                if (editor->document()->isModified()) {
+                    return;
+                }
+            } else if (reply == QMessageBox::Cancel) {
                 return;
             }
-        } else if (reply == QMessageBox::Cancel) {
+            QString tempFileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
+            if (!fileController->saveFile(tempFileName, editor->getText())) {
+                qDebug() << "Failed to save temporary file for execution:" << tempFileName;
+                QMessageBox::warning(this, tr("Save Error"), tr("Failed to save the temporary file for execution."));
+                return;
+            }
+            fileName = tempFileName;
+            editorTabs[index].filePath = tempFileName;
+        }
+
+        if (!fileController->saveFile(fileName, editor->getText())) {
+            qDebug() << "Failed to save file for execution:" << fileName;
+            QMessageBox::warning(this, tr("Save Error"), tr("Failed to save the file for execution."));
             return;
         }
-        QString tempFileName = QCoreApplication::applicationDirPath() + "/temp_run.txt";
-        if (!fileController->saveFile(tempFileName, editor->getText())) {
-            qDebug() << "Failed to save temporary file for execution:" << tempFileName;
-            QMessageBox::warning(this, tr("Save Error"), tr("Failed to save the temporary file for execution."));
-            return;
-        }
-        fileName = tempFileName;
-        editorTabs[index].filePath = tempFileName;
-    }
 
-    if (!fileController->saveFile(fileName, editor->getText())) {
-        qDebug() << "Failed to save file for execution:" << fileName;
-        QMessageBox::warning(this, tr("Save Error"), tr("Failed to save the file for execution."));
-        return;
+        fileController->compileAndRunCom(fileName);
     }
-
-    fileController->compileAndRunCom(fileName);
 }
 
 void MainWindow::onCompileAndRunFinished(const QString& output) {
